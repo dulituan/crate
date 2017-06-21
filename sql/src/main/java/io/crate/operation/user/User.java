@@ -76,6 +76,17 @@ public class User {
         return hasPrivilege.isPresent();
     }
 
+    /**
+     * Checks if the user has any privilege that matches the given class, type and ident
+     * currently we check for any privilege, since Class is always CLUSTER and ident null.
+     * @param clazz          privilege class (ie. CLUSTER, TABLE, etc)
+     * @param ident          ident of the object
+     */
+    public boolean hasAnyPrivilege(Privilege.Clazz clazz, String ident) {
+        Optional<Privilege> hasPrivilege = privileges.stream().findAny();
+        return hasPrivilege.isPresent();
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

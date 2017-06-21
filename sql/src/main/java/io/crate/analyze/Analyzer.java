@@ -126,9 +126,14 @@ public class Analyzer {
 
     public Analysis boundAnalyze(Statement statement, SessionContext sessionContext, ParameterContext parameterContext) {
         Analysis analysis = new Analysis(sessionContext, parameterContext, ParamTypeHints.EMPTY);
-        AnalyzedStatement analyzedStatement = analyzedStatement(statement, analysis);
-        userManager.ensureAuthorized(analyzedStatement, sessionContext);
-        analysis.analyzedStatement(analyzedStatement);
+        try {
+            AnalyzedStatement analyzedStatement = analyzedStatement(statement, analysis);
+            userManager.ensureAuthorized(analyzedStatement, sessionContext);
+            analysis.analyzedStatement(analyzedStatement);
+        } catch (Throwable t){
+            userManager.validateException(t, sessionContext);
+            throw t;
+        }
         return analysis;
     }
 

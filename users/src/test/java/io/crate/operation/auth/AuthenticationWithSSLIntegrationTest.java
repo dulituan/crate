@@ -103,6 +103,7 @@ public class AuthenticationWithSSLIntegrationTest extends SQLTransportIntegratio
             conn.createStatement().execute("CREATE USER requiredssluser");
             conn.createStatement().execute("CREATE USER optionalssluser");
             conn.createStatement().execute("CREATE USER neverssluser");
+            conn.createStatement().execute("GRANT DQL TO requiredssluser, optionalssluser, neverssluser");
         }
 
         // We have SSL available in the following tests:

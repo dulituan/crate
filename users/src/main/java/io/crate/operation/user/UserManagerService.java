@@ -22,14 +22,10 @@ import com.google.common.collect.ImmutableSet;
 import io.crate.action.FutureActionListener;
 import io.crate.action.sql.SessionContext;
 import io.crate.analyze.AnalyzedStatement;
-import io.crate.analyze.AnalyzedStatementVisitor;
-import io.crate.analyze.CreateUserAnalyzedStatement;
-import io.crate.analyze.DropUserAnalyzedStatement;
-import io.crate.analyze.PrivilegesAnalyzedStatement;
 import io.crate.analyze.user.Privilege;
 import io.crate.exceptions.PermissionDeniedException;
-import io.crate.exceptions.UnauthorizedException;
 import io.crate.metadata.UsersMetaData;
+import io.crate.exceptions.*;
 import io.crate.metadata.UsersPrivilegesMetaData;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -39,7 +35,6 @@ import org.elasticsearch.common.Nullable;
 
 import java.util.Collection;
 import java.util.EnumSet;
-import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
@@ -48,7 +43,7 @@ public class UserManagerService implements UserManager, ClusterStateListener {
 
     public static User CRATE_USER = new User("crate", EnumSet.of(User.Role.SUPERUSER), ImmutableSet.of());
 
-    private static final PermissionVisitor PERMISSION_VISITOR = new PermissionVisitor();
+    private final static PrivilegeValidator PERMISSION_VISITOR = new PrivilegeValidator();
 
     static {
         MetaData.registerPrototype(UsersMetaData.TYPE, UsersMetaData.PROTO);
@@ -113,7 +108,7 @@ public class UserManagerService implements UserManager, ClusterStateListener {
     @Override
     public void ensureAuthorized(AnalyzedStatement analyzedStatement,
                                  SessionContext sessionContext) {
-        PERMISSION_VISITOR.process(analyzedStatement, sessionContext);
+        PERMISSION_VISITOR.validate(analyzedStatement, new PrivilegeContext(sessionContext, this));
     }
 
     @Override
@@ -138,15 +133,20 @@ public class UserManagerService implements UserManager, ClusterStateListener {
 
     @Override
     public void raiseMissingPrivilegeException(Privilege.Clazz clazz, @Nullable Privilege.Type type, String ident, @Nullable User user) throws PermissionDeniedException {
-        if (null == type) {
-            return;
-        }
-
         if (null == user) {
             // this can occur when the hba setting is not there,
             // in this case there is no authentication and everyone
             // can access the cluster
             return;
+        }
+        if (null == type) {
+            // when type is null, we check if the user has any privilege type
+            if (user.hasAnyPrivilege(clazz, ident)) {
+                return;
+            }
+            else {
+                throw new PermissionDeniedException(user.name());
+            }
         }
 
         if (!user.isSuperUser() && Privilege.Type.DCL.equals(type)) {
@@ -160,49 +160,19 @@ public class UserManagerService implements UserManager, ClusterStateListener {
         }
     }
 
-    private static class PermissionVisitor extends AnalyzedStatementVisitor<SessionContext, Boolean> {
-
-        boolean isSuperUser(@Nullable User user) {
-            return user != null && user.roles().contains(User.Role.SUPERUSER);
+    @Override
+    public void validateException(Throwable t, SessionContext sessionContext){
+        if (t instanceof TableUnknownException) {
+            raiseMissingPrivilegeException(Privilege.Clazz.SCHEMA, null, null, sessionContext.user());
         }
-
-        private void throwUnauthorized(@Nullable User user) {
-            String userName = user != null ? user.name() : null;
-            throw new UnauthorizedException(
-                String.format(Locale.ENGLISH, "User \"%s\" is not authorized to execute statement", userName));
+        if (t instanceof ResourceUnknownException) {
+            raiseMissingPrivilegeException(Privilege.Clazz.CLUSTER, null, null, sessionContext.user());
         }
-
-        @Override
-        protected Boolean visitAnalyzedStatement(AnalyzedStatement analyzedStatement,
-                                                 SessionContext sessionContext) {
-            return true;
+        if (t instanceof ConflictException) {
+            raiseMissingPrivilegeException(Privilege.Clazz.CLUSTER, null, null, sessionContext.user());
         }
-
-        @Override
-        protected Boolean visitCreateUserStatement(CreateUserAnalyzedStatement analysis,
-                                                   SessionContext sessionContext) {
-            if (!isSuperUser(sessionContext.user())) {
-                throwUnauthorized(sessionContext.user());
-            }
-            return true;
-        }
-
-        @Override
-        protected Boolean visitDropUserStatement(DropUserAnalyzedStatement analysis,
-                                                 SessionContext sessionContext) {
-            if (!isSuperUser(sessionContext.user())) {
-                throwUnauthorized(sessionContext.user());
-            }
-            return true;
-        }
-
-        @Override
-        public Boolean visitPrivilegesStatement(PrivilegesAnalyzedStatement analysis,
-                                                SessionContext context) {
-            if (!isSuperUser(context.user())) {
-                throwUnauthorized(context.user());
-            }
-            return true;
+        if (t instanceof RepositoryUnknownException) {
+            raiseMissingPrivilegeException(Privilege.Clazz.CLUSTER, null, null, sessionContext.user());
         }
     }
 }

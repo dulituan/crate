@@ -33,6 +33,10 @@ public class PermissionDeniedException extends UnauthorizedException {
         super(String.format(Locale.ENGLISH, MESSAGE_TMPL, type, userName));
     }
 
+    public PermissionDeniedException(String userName) {
+        super(String.format(Locale.ENGLISH, "Missing Privilege for user '%s'", userName));
+    }
+
     @Override
     public int errorCode() {
         return 1;

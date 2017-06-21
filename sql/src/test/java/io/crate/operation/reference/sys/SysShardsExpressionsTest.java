@@ -22,13 +22,6 @@
 package io.crate.operation.reference.sys;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import io.crate.action.sql.SessionContext;
-import io.crate.analyze.AnalyzedStatement;
-import io.crate.analyze.user.Privilege;
-import io.crate.concurrent.CompletableFutures;
-import io.crate.exceptions.PermissionDeniedException;
-import io.crate.exceptions.UnsupportedFeatureException;
 import io.crate.metadata.*;
 import io.crate.metadata.doc.DocSchemaInfoFactory;
 import io.crate.metadata.doc.TestingDocTableInfoFactory;
@@ -40,9 +33,6 @@ import io.crate.operation.reference.ReferenceResolver;
 import io.crate.operation.reference.sys.shard.ShardPathExpression;
 import io.crate.operation.reference.sys.shard.ShardRecoveryExpression;
 import io.crate.operation.reference.sys.shard.ShardRecoveryStateExpression;
-import io.crate.operation.user.User;
-import io.crate.operation.user.UserManager;
-import io.crate.operation.user.UserManagerProvider;
 import io.crate.test.integration.CrateDummyClusterServiceUnitTest;
 import io.crate.operation.udf.UserDefinedFunctionService;
 import io.crate.types.DataTypes;
@@ -66,11 +56,9 @@ import org.junit.Test;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
 import static io.crate.testing.TestingHelpers.getFunctions;
 import static io.crate.testing.TestingHelpers.refInfo;
@@ -95,14 +83,11 @@ public class SysShardsExpressionsTest extends CrateDummyClusterServiceUnitTest {
         indexShard = mockIndexShard();
         functions = getFunctions();
         udfService = new UserDefinedFunctionService(clusterService);
-
-        UserManager userManager = new UserManagerProvider.UnsupportedUserManager();
         schemas = new Schemas(
             Settings.EMPTY,
             ImmutableMap.of("sys", new SysSchemaInfo(clusterService)),
             clusterService,
-            new DocSchemaInfoFactory(new TestingDocTableInfoFactory(Collections.emptyMap()), functions, udfService),
-            ()-> userManager
+            new DocSchemaInfoFactory(new TestingDocTableInfoFactory(Collections.emptyMap()), functions, udfService)
         );
         resolver = ShardReferenceResolver.create(
             clusterService,

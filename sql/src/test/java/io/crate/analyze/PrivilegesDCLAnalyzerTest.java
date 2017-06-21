@@ -166,6 +166,8 @@ public class PrivilegesDCLAnalyzerTest extends CrateDummyClusterServiceUnitTest 
             }
             @Override
             public void raiseMissingPrivilegeException(Privilege.Clazz clazz, Privilege.Type type, String ident, User user) throws PermissionDeniedException {}
+            @Override
+            public void validateException(Throwable t, SessionContext context) {}
         };
     }
 }

@@ -90,9 +90,6 @@ public class SQLExecutor {
     public final Planner planner;
 
     public static class Builder {
-        public Map<String, SchemaInfo> getSchemas() {
-            return schemas;
-        }
 
         private final ClusterService clusterService;
         private final Map<String, SchemaInfo> schemas = new HashMap<>();
@@ -167,8 +164,7 @@ public class SQLExecutor {
                         Settings.EMPTY,
                         schemas,
                         clusterService,
-                        new DocSchemaInfoFactory(new TestingDocTableInfoFactory(Collections.emptyMap()), functions, udfService),
-                        userManagerProvider
+                        new DocSchemaInfoFactory(new TestingDocTableInfoFactory(Collections.emptyMap()), functions, udfService)
                     ),
                     functions,
                     clusterService,
@@ -299,5 +295,4 @@ public class SQLExecutor {
     public <T extends Plan> T plan(String statement) {
         return plan(statement, UUID.randomUUID(), 0, 0);
     }
-
 }

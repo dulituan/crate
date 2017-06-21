@@ -22,7 +22,6 @@
 
 package io.crate.operation.user;
 
-import com.google.common.annotations.VisibleForTesting;
 import io.crate.action.sql.SessionContext;
 import io.crate.analyze.AnalyzedStatement;
 import io.crate.analyze.user.Privilege;
@@ -74,7 +73,7 @@ public class UserManagerProvider implements Provider<UserManager> {
         return userManager;
     }
 
-    public static class UnsupportedUserManager implements UserManager {
+    private static class UnsupportedUserManager implements UserManager {
 
         @Override
         public CompletableFuture<Long> createUser(String userName) {
@@ -110,6 +109,11 @@ public class UserManagerProvider implements Provider<UserManager> {
 
         @Override
         public void raiseMissingPrivilegeException(Privilege.Clazz clazz, Privilege.Type type, String ident, @Nullable User user) throws PermissionDeniedException {
+
+        }
+
+        @Override
+        public void validateException(Throwable t, SessionContext context) {
 
         }
     }

@@ -71,6 +71,13 @@ public interface UserManager extends UserLookup {
     void ensureAuthorized(AnalyzedStatement analysis, SessionContext sessionContext);
 
     /**
+     * catches thrown exception and validates permission if needed
+     * @param t          throwable
+     * @param sessionContext    current session context
+     */
+    void validateException(Throwable t, SessionContext sessionContext);
+
+    /**
      * Throws PermissionDeniedException if user is not authorized to perform the statement
      * @param clazz          privilege class (ie. CLUSTER, TABLE, etc)
      * @param type           privilege type
@@ -78,5 +85,4 @@ public interface UserManager extends UserLookup {
      * @throws PermissionDeniedException if the user is not authorized to perform the statement
      */
     void raiseMissingPrivilegeException(Privilege.Clazz clazz, @Nullable Privilege.Type type, String ident, @Nullable User user) throws PermissionDeniedException;
-
 }
