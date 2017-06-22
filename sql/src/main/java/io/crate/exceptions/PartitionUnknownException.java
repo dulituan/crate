@@ -21,15 +21,25 @@
 
 package io.crate.exceptions;
 
+import io.crate.metadata.TableIdent;
+
 import java.util.Locale;
 
 public class PartitionUnknownException extends ResourceUnknownException {
 
-    public PartitionUnknownException(String tableName, String partitionIdent) {
+    private TableIdent tableIdent;
+
+    public PartitionUnknownException(TableIdent tableIdent, String partitionIdent) {
         super(String.format(Locale.ENGLISH,
             "No partition for table '%s' with ident '%s' exists",
-            tableName,
+            tableIdent.fqn(),
             partitionIdent));
+
+        this.tableIdent = tableIdent;
+    }
+
+    public TableIdent getTableIdent() {
+        return tableIdent;
     }
 
     @Override

@@ -28,11 +28,18 @@ import java.util.Locale;
 
 public class UserDefinedFunctionAlreadyExistsException extends ConflictException {
 
+    private String schema;
+
     public UserDefinedFunctionAlreadyExistsException(UserDefinedFunctionMetaData udfMetaData) {
         super(String.format(Locale.ENGLISH, "User defined Function '%s.%s' already exists.",
             udfMetaData.schema(),
             udfMetaData.specificName())
         );
+        this.schema = udfMetaData.schema();
+    }
+
+    public String getSchema() {
+        return schema;
     }
 
     @Override

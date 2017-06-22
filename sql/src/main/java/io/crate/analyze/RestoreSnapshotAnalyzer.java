@@ -94,7 +94,7 @@ class RestoreSnapshotAnalyzer {
                         table.partitionProperties(),
                         analysis.parameterContext().parameters());
                     if (docTableInfo.partitions().contains(partitionName)) {
-                        throw new PartitionAlreadyExistsException(partitionName);
+                        throw new PartitionAlreadyExistsException(partitionName, tableIdent);
                     }
                     restoreTables.add(new RestoreSnapshotAnalyzedStatement.RestoreTableInfo(tableIdent, partitionName));
                 } else {

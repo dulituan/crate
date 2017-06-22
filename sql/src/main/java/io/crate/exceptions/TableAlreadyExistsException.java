@@ -27,14 +27,22 @@ import java.util.Locale;
 
 public class TableAlreadyExistsException extends ConflictException {
 
+    private String schema;
+
     private static final String MESSAGE_TMPL = "The table '%s' already exists.";
 
     public TableAlreadyExistsException(TableIdent tableIdent) {
         super(String.format(Locale.ENGLISH, MESSAGE_TMPL, tableIdent));
+        this.schema = tableIdent.schema();
     }
 
     public TableAlreadyExistsException(String tableName, Throwable e) {
         super(String.format(Locale.ENGLISH, MESSAGE_TMPL, tableName), e);
+        this.schema = null;
+    }
+
+    public String getSchema() {
+        return schema;
     }
 
     @Override

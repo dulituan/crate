@@ -34,10 +34,16 @@ import java.util.stream.Collectors;
 
 public class UserDefinedFunctionUnknownException extends ResourceUnknownException {
 
+    private String schema;
     public UserDefinedFunctionUnknownException(String schema, String name, List<DataType> types) {
         super(String.format(Locale.ENGLISH, "Cannot resolve user defined function: '%s.%s(%s)'",
             schema, name, types.stream().map(DataType::getName).collect(Collectors.joining(",")))
         );
+        this.schema = schema;
+    }
+
+    public String getSchema() {
+        return schema;
     }
 
     @Override

@@ -23,13 +23,21 @@
 package io.crate.exceptions;
 
 import io.crate.metadata.PartitionName;
+import io.crate.metadata.TableIdent;
 
 import java.util.Locale;
 
 public class PartitionAlreadyExistsException extends ConflictException {
 
-    public PartitionAlreadyExistsException(PartitionName partitionName) {
+    private TableIdent tableIdent;
+
+    public PartitionAlreadyExistsException(PartitionName partitionName, TableIdent tableIdent) {
         super(String.format(Locale.ENGLISH, "Partition '%s' already exists", partitionName));
+        this.tableIdent = tableIdent;
+    }
+
+    public TableIdent getTableIdent() {
+        return tableIdent;
     }
 
     @Override

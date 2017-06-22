@@ -41,10 +41,6 @@ import static org.hamcrest.Matchers.is;
 
 public class PrivilegeValidationTest extends CrateDummyClusterServiceUnitTest {
 
-    private static final User crateUser = new User("crateUser",
-        ImmutableSet.of(User.Role.SUPERUSER),
-        Collections.EMPTY_SET);
-
     private static final User dmlUser = new User("dmlUser",
         Collections.EMPTY_SET,
         ImmutableSet.of(new Privilege(Privilege.State.GRANT, Privilege.Type.DML, Privilege.Clazz.CLUSTER, null, "crate")));

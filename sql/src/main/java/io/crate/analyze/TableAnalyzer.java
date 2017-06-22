@@ -47,7 +47,7 @@ final class TableAnalyzer {
                 parameterContext.parameters()
             );
             if (!docTableInfo.partitions().contains(partitionName)) {
-                throw new PartitionUnknownException(tableInfo.ident().fqn(), partitionName.ident());
+                throw new PartitionUnknownException(tableInfo.ident(), partitionName.ident());
             }
             return Collections.singletonList(partitionName.asIndexName());
         }

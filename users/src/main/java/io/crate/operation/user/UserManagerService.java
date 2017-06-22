@@ -23,9 +23,8 @@ import io.crate.action.FutureActionListener;
 import io.crate.action.sql.SessionContext;
 import io.crate.analyze.AnalyzedStatement;
 import io.crate.analyze.user.Privilege;
-import io.crate.exceptions.PermissionDeniedException;
-import io.crate.metadata.UsersMetaData;
 import io.crate.exceptions.*;
+import io.crate.metadata.UsersMetaData;
 import io.crate.metadata.UsersPrivilegesMetaData;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -160,12 +159,15 @@ public class UserManagerService implements UserManager, ClusterStateListener {
     }
 
     @Override
-    public void validateException(Throwable t, SessionContext sessionContext){
-        if (null!= sessionContext.user() && sessionContext.user().isSuperUser()) {
+    public void validateException(Throwable t, SessionContext sessionContext) {
+        String schemaName;
+        if (sessionContext.user() != null && sessionContext.user().isSuperUser()) {
             return;
         }
         if (t instanceof TableUnknownException) {
-            raiseMissingPrivilegeException(Privilege.Clazz.SCHEMA, null, ((TableUnknownException) t).getTableIdent().split("\\.")[0], sessionContext.user());
+            String[] parts = ((TableUnknownException) t).getTableIdent().split("\\.");
+            schemaName = parts.length > 1 ? parts[0] : sessionContext.defaultSchema();
+            raiseMissingPrivilegeException(Privilege.Clazz.SCHEMA, null, schemaName, sessionContext.user());
         }
         if (t instanceof AnalyzerUnknownException) {
             raiseMissingPrivilegeException(Privilege.Clazz.CLUSTER, null, null, sessionContext.user());
@@ -173,11 +175,47 @@ public class UserManagerService implements UserManager, ClusterStateListener {
         if (t instanceof ColumnUnknownException) {
             raiseMissingPrivilegeException(Privilege.Clazz.TABLE, null, ((ColumnUnknownException) t).getTableIdent().toString(), sessionContext.user());
         }
-        if (t instanceof ResourceUnknownException) {
+        if (t instanceof SchemaUnknownException) {
             raiseMissingPrivilegeException(Privilege.Clazz.CLUSTER, null, null, sessionContext.user());
         }
-        if (t instanceof ConflictException) {
+        if (t instanceof RelationUnknownException) {
+            if (((RelationUnknownException) t).qualifiedName().getParts().size() > 1) {
+                schemaName = ((RelationUnknownException) t).qualifiedName().getParts().get(0);
+            } else {
+                schemaName = sessionContext.defaultSchema();
+            }
+            raiseMissingPrivilegeException(Privilege.Clazz.SCHEMA, null, schemaName, sessionContext.user());
+        }
+        if (t instanceof RepositoryUnknownException) {
             raiseMissingPrivilegeException(Privilege.Clazz.CLUSTER, null, null, sessionContext.user());
+        }
+        if (t instanceof SnapshotUnknownException) {
+            raiseMissingPrivilegeException(Privilege.Clazz.CLUSTER, null, null, sessionContext.user());
+        }
+        if (t instanceof UserDefinedFunctionUnknownException) {
+            raiseMissingPrivilegeException(Privilege.Clazz.SCHEMA, null, ((UserDefinedFunctionUnknownException) t).getSchema(), sessionContext.user());
+        }
+        if (t instanceof PartitionUnknownException) {
+            raiseMissingPrivilegeException(Privilege.Clazz.SCHEMA, null, ((PartitionUnknownException) t).getTableIdent().schema(), sessionContext.user());
+        }
+        if (t instanceof TableAlreadyExistsException) {
+            schemaName = ((TableAlreadyExistsException) t).getSchema() != null ? ((TableAlreadyExistsException) t).getSchema() : sessionContext.defaultSchema();
+            raiseMissingPrivilegeException(Privilege.Clazz.SCHEMA, null, schemaName, sessionContext.user());
+        }
+        if (t instanceof PartitionUnknownException) {
+            raiseMissingPrivilegeException(Privilege.Clazz.TABLE, null, ((PartitionUnknownException) t).getTableIdent().toString(), sessionContext.user());
+        }
+        if (t instanceof RepositoryAlreadyExistsException) {
+            raiseMissingPrivilegeException(Privilege.Clazz.CLUSTER, null, null, sessionContext.user());
+        }
+        if (t instanceof SnapshotAlreadyExistsExeption) {
+            raiseMissingPrivilegeException(Privilege.Clazz.CLUSTER, null, null, sessionContext.user());
+        }
+        if (t instanceof UserDefinedFunctionAlreadyExistsException) {
+            raiseMissingPrivilegeException(Privilege.Clazz.SCHEMA, null, ((UserDefinedFunctionAlreadyExistsException) t).getSchema(), sessionContext.user());
+        }
+        if (t instanceof TableAliasSchemaException) {
+            raiseMissingPrivilegeException(Privilege.Clazz.SCHEMA, null, ((TableAliasSchemaException) t).getSchema(), sessionContext.user());
         }
     }
 }

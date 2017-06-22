@@ -644,7 +644,7 @@ public class DocIndexMetaData {
             }
             return this;
         } else {
-            throw new TableAliasSchemaException(other.ident.name());
+            throw new TableAliasSchemaException(other.ident);
         }
     }
 

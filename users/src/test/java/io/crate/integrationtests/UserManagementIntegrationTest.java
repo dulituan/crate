@@ -89,15 +89,15 @@ public class UserManagementIntegrationTest extends BaseUsersIntegrationTest {
     @Test
     public void testDropUserUnAuthorized() throws Exception {
         expectedException.expect(SQLActionException.class);
-        expectedException.expectMessage("User \"null\" is not authorized to execute statement");
-        execute("drop user ford");
+        expectedException.expectMessage("User \"normal\" is not authorized to execute statement");
+        executeAsNormalUser("drop user ford");
     }
 
     @Test
     public void testCreateUserUnAuthorized() throws Exception {
         expectedException.expect(SQLActionException.class);
-        expectedException.expectMessage("User \"null\" is not authorized to execute statement");
-        execute("create user ford");
+        expectedException.expectMessage("User \"normal\" is not authorized to execute statement");
+        executeAsNormalUser("create user ford");
     }
 
     @Test
@@ -111,7 +111,7 @@ public class UserManagementIntegrationTest extends BaseUsersIntegrationTest {
     public void testSelectUsersUnAuthorized() throws Exception {
         expectedException.expect(SQLActionException.class);
         expectedException.expectMessage(
-            "UnauthorizedException: User \"null\" is not authorized to access table \"sys.users\"");
-        execute("select * from sys.users");
+            "UnauthorizedException: User \"normal\" is not authorized to access table \"sys.users\"");
+        executeAsNormalUser("select * from sys.users");
     }
 }
