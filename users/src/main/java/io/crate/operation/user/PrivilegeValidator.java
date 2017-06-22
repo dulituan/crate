@@ -33,6 +33,12 @@ class PrivilegeValidator {
     private static final PrivilegeStatementVisitor privilegeStatementVisitor = new PrivilegeStatementVisitor();
 
     public Boolean validate(AnalyzedStatement analyzedStatement, PrivilegeContext context) {
+        if ( null == context.sessionContext().user()) {
+            // this can occur when the hba setting is not there,
+            // in this case there is no authentication and everyone
+            // can access the cluster
+            return true;
+        }
         if (context.sessionContext().user().isSuperUser()) {
             return true;
         }

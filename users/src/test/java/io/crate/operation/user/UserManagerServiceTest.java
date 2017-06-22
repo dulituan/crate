@@ -30,6 +30,7 @@ import io.crate.metadata.UsersPrivilegesMetaData;
 import io.crate.test.integration.CrateDummyClusterServiceUnitTest;
 import org.junit.Test;
 
+import java.util.Collections;
 import java.util.Set;
 
 import static io.crate.operation.user.UserManagerService.CRATE_USER;
@@ -58,10 +59,12 @@ public class UserManagerServiceTest extends CrateDummyClusterServiceUnitTest {
     @Test
     public void testCreateUserStatementCheckPermissionFalse() {
         expectedException.expect(UnauthorizedException.class);
-        expectedException.expectMessage(is("User \"null\" is not authorized to execute statement"));
+        expectedException.expectMessage(is("User \"noPriviligeUser\" is not authorized to execute statement"));
         UserManagerService userManagerService = new UserManagerService(null, null, null, clusterService);
         userManagerService.ensureAuthorized(new CreateUserAnalyzedStatement(""),
-            new SessionContext(0, Option.NONE, "my_schema", null));
+            new SessionContext(0, Option.NONE, "my_schema", new User("noPriviligeUser",
+                Collections.EMPTY_SET,
+                Collections.EMPTY_SET)));
     }
 
     @Test
@@ -74,10 +77,12 @@ public class UserManagerServiceTest extends CrateDummyClusterServiceUnitTest {
     @Test
     public void testDropUserStatementCheckPermissionFalse() {
         expectedException.expect(UnauthorizedException.class);
-        expectedException.expectMessage(is("User \"null\" is not authorized to execute statement"));
+        expectedException.expectMessage(is("User \"noPriviligeUser\" is not authorized to execute statement"));
         UserManagerService userManagerService = new UserManagerService(null, null, null, clusterService);
         userManagerService.ensureAuthorized(new DropUserAnalyzedStatement("", false),
-            new SessionContext(0, Option.NONE, "my_schema", null));
+            new SessionContext(0, Option.NONE, "my_schema", new User("noPriviligeUser",
+                Collections.EMPTY_SET,
+                Collections.EMPTY_SET)));
     }
 
     @Test
