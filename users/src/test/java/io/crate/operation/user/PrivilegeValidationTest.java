@@ -35,7 +35,6 @@ import io.crate.testing.SQLExecutor;
 import org.junit.Before;
 import org.junit.Test;
 
-
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.is;
@@ -166,7 +165,7 @@ public class PrivilegeValidationTest extends CrateDummyClusterServiceUnitTest {
         expectedException.expect(PermissionDeniedException.class);
         expectedException.expectMessage(is("Missing 'DDL' Privilege for user 'noPriviligeUser'"));
         e.analyzer.boundAnalyze(SqlParser.createStatement("CREATE FUNCTION bar(long, long)" +
-        " RETURNS long LANGUAGE dummy_lang AS 'function(a, b) { return a + b; }'"),
+                " RETURNS long LANGUAGE dummy_lang AS 'function(a, b) { return a + b; }'"),
             new SessionContext(0, Option.NONE, "doc", noPriviligeUser), new ParameterContext(Row.EMPTY, Collections.<Row>emptyList()));
     }
 

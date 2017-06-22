@@ -30,7 +30,6 @@ import io.crate.metadata.FulltextAnalyzerResolver;
 import io.crate.metadata.Functions;
 import io.crate.metadata.Schemas;
 import io.crate.operation.user.UserManager;
-import io.crate.operation.user.UserManagerProvider;
 import io.crate.sql.tree.*;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -130,7 +129,7 @@ public class Analyzer {
             AnalyzedStatement analyzedStatement = analyzedStatement(statement, analysis);
             userManager.ensureAuthorized(analyzedStatement, sessionContext);
             analysis.analyzedStatement(analyzedStatement);
-        } catch (Throwable t){
+        } catch (Throwable t) {
             userManager.validateException(t, sessionContext);
             throw t;
         }

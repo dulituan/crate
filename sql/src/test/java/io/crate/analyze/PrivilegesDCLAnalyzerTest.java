@@ -43,9 +43,7 @@ import java.util.concurrent.CompletableFuture;
 
 import static io.crate.analyze.user.Privilege.State.GRANT;
 import static io.crate.analyze.user.Privilege.State.REVOKE;
-import static io.crate.analyze.user.Privilege.Type.DDL;
-import static io.crate.analyze.user.Privilege.Type.DML;
-import static io.crate.analyze.user.Privilege.Type.DQL;
+import static io.crate.analyze.user.Privilege.Type.*;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -166,8 +164,10 @@ public class PrivilegesDCLAnalyzerTest extends CrateDummyClusterServiceUnitTest 
             }
             @Override
             public void raiseMissingPrivilegeException(Privilege.Clazz clazz, Privilege.Type type, String ident, User user) throws PermissionDeniedException {}
+
             @Override
-            public void validateException(Throwable t, SessionContext context) {}
+            public void validateException(Throwable t, SessionContext context) {
+            }
         };
     }
 }

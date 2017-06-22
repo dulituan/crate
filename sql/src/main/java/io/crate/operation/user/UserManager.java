@@ -72,8 +72,9 @@ public interface UserManager extends UserLookup {
 
     /**
      * catches thrown exception and validates permission if needed
-     * @param t          throwable
-     * @param sessionContext    current session context
+     *
+     * @param t              throwable
+     * @param sessionContext current session context
      */
     void validateException(Throwable t, SessionContext sessionContext);
 
