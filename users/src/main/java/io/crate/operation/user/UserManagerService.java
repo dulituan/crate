@@ -43,7 +43,7 @@ public class UserManagerService implements UserManager, ClusterStateListener {
 
     public static User CRATE_USER = new User("crate", EnumSet.of(User.Role.SUPERUSER), ImmutableSet.of());
 
-    private final static PrivilegeValidator PERMISSION_VISITOR = new PrivilegeValidator();
+    private static final PrivilegeValidator PERMISSION_VISITOR = new PrivilegeValidator();
 
     static {
         MetaData.registerPrototype(UsersMetaData.TYPE, UsersMetaData.PROTO);
@@ -143,8 +143,7 @@ public class UserManagerService implements UserManager, ClusterStateListener {
             // when type is null, we check if the user has any privilege type
             if (user.hasAnyPrivilege(clazz, ident)) {
                 return;
-            }
-            else {
+            } else {
                 throw new PermissionDeniedException(user.name());
             }
         }

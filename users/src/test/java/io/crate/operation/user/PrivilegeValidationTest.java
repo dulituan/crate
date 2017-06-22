@@ -47,21 +47,11 @@ public class PrivilegeValidationTest extends CrateDummyClusterServiceUnitTest {
 
     private static final User dmlUser = new User("dmlUser",
         Collections.EMPTY_SET,
-        ImmutableSet.of(new Privilege(Privilege.State.GRANT, Privilege.Type.DML, Privilege.Clazz.CLUSTER, null, "dmlUser")));
-
-    private static final User ddlUser = new User("ddlUser",
-        Collections.EMPTY_SET,
-        ImmutableSet.of(new Privilege(Privilege.State.GRANT, Privilege.Type.DDL, Privilege.Clazz.CLUSTER, null, "crate")));
+        ImmutableSet.of(new Privilege(Privilege.State.GRANT, Privilege.Type.DML, Privilege.Clazz.CLUSTER, null, "crate")));
 
     private static final User dqlUser = new User("dqlUser",
         Collections.EMPTY_SET,
         ImmutableSet.of(new Privilege(Privilege.State.GRANT, Privilege.Type.DQL, Privilege.Clazz.CLUSTER, null, "crate")));
-
-    private static final User allUser = new User("allUser",
-        Collections.EMPTY_SET,
-        ImmutableSet.of(new Privilege(Privilege.State.GRANT, Privilege.Type.DQL, Privilege.Clazz.CLUSTER, null, "crate"),
-            new Privilege(Privilege.State.GRANT, Privilege.Type.DML, Privilege.Clazz.CLUSTER, null, "crate"),
-            new Privilege(Privilege.State.GRANT, Privilege.Type.DDL, Privilege.Clazz.CLUSTER, null, "crate")));
 
     private static final User noPriviligeUser = new User("noPriviligeUser",
         Collections.EMPTY_SET,

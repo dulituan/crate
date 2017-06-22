@@ -84,8 +84,7 @@ public class User {
      * @param ident ident of the object
      */
     public boolean hasAnyPrivilege(Privilege.Clazz clazz, String ident) {
-        Optional<Privilege> hasPrivilege = privileges.stream().findAny();
-        return hasPrivilege.isPresent();
+        return privileges().size() > 0;
     }
 
     @Override
