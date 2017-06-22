@@ -161,6 +161,9 @@ public class UserManagerService implements UserManager, ClusterStateListener {
 
     @Override
     public void validateException(Throwable t, SessionContext sessionContext){
+        if (null!= sessionContext.user() && sessionContext.user().isSuperUser()) {
+            return;
+        }
         if (t instanceof TableUnknownException) {
             raiseMissingPrivilegeException(Privilege.Clazz.SCHEMA, null, ((TableUnknownException) t).getTableIdent().split("\\.")[0], sessionContext.user());
         }
