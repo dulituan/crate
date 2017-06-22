@@ -27,12 +27,20 @@ import java.util.Locale;
 
 public class TableUnknownException extends ResourceUnknownException {
 
+    private String tableIdent;
+
     public TableUnknownException(String tableName, Throwable e) {
         super(String.format(Locale.ENGLISH, "Table '%s' unknown", tableName), e);
+        this.tableIdent = tableName;
     }
 
     public TableUnknownException(TableIdent tableIdent) {
         super(String.format(Locale.ENGLISH, "Table '%s' unknown", tableIdent));
+        this.tableIdent = tableIdent.toString();
+    }
+
+    public String getTableIdent() {
+        return tableIdent;
     }
 
     @Override

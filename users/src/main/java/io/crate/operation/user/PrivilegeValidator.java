@@ -22,22 +22,32 @@ package io.crate.operation.user;
 import io.crate.analyze.*;
 import io.crate.analyze.relations.*;
 import io.crate.analyze.user.Privilege;
+import io.crate.exceptions.UnauthorizedException;
 import io.crate.sql.tree.SetStatement;
+import org.elasticsearch.common.Nullable;
 
 import java.util.Locale;
 
 class PrivilegeValidator {
 
-    private final PrivilegeStatementVisitor privilegeStatementVisitor = new PrivilegeStatementVisitor();
+    private static final PrivilegeStatementVisitor privilegeStatementVisitor = new PrivilegeStatementVisitor();
 
     public Boolean validate(AnalyzedStatement analyzedStatement, PrivilegeContext context) {
+        if (context.sessionContext().user().isSuperUser()) {
+            return true;
+        }
         return privilegeStatementVisitor.process(analyzedStatement, context);
     }
 
     private final static class PrivilegeStatementVisitor extends AnalyzedStatementVisitor<PrivilegeContext, Boolean> {
 
-        private final PrivilegeRelationVisitor privilegeRelationVisitor = new PrivilegeRelationVisitor();
+        private static final PrivilegeRelationVisitor privilegeRelationVisitor = new PrivilegeRelationVisitor();
 
+        private static void throwUnauthorized(@Nullable User user) {
+            String userName = user != null ? user.name() : null;
+            throw new UnauthorizedException(
+                String.format(Locale.ENGLISH, "User \"%s\" is not authorized to execute statement", userName));
+        }
         @Override
         protected Boolean visitAnalyzedStatement(AnalyzedStatement analyzedStatement, PrivilegeContext context) {
             throw new UnsupportedOperationException(String.format(Locale.ENGLISH, "Can't handle \"%s\"", analyzedStatement));
@@ -45,26 +55,20 @@ class PrivilegeValidator {
 
         @Override
         protected Boolean visitCreateUserStatement(CreateUserAnalyzedStatement analysis, PrivilegeContext context) {
-            if (!context.isSuperUser(context.sessionContext().user())) {
-                context.throwUnauthorized(context.sessionContext().user());
-            }
-            return true;
+            throwUnauthorized(context.sessionContext().user());
+            return false;
         }
 
         @Override
         protected Boolean visitDropUserStatement(DropUserAnalyzedStatement analysis, PrivilegeContext context) {
-            if (!context.isSuperUser(context.sessionContext().user())) {
-                context.throwUnauthorized(context.sessionContext().user());
-            }
-            return true;
+            throwUnauthorized(context.sessionContext().user());
+            return false;
         }
 
         @Override
         public Boolean visitPrivilegesStatement(PrivilegesAnalyzedStatement analysis, PrivilegeContext context) {
-            if (!context.isSuperUser(context.sessionContext().user())) {
-                context.throwUnauthorized(context.sessionContext().user());
-            }
-            return true;
+            throwUnauthorized(context.sessionContext().user());
+            return false;
         }
 
         @Override
@@ -87,10 +91,8 @@ class PrivilegeValidator {
 
         @Override
         protected Boolean visitCopyToStatement(CopyToAnalyzedStatement analysis, PrivilegeContext context) {
-            context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.TABLE,
-                Privilege.Type.DQL,
-                analysis.subQueryRelation().tableRelation().getQualifiedName().toString(),
-                context.sessionContext().user());
+            context.setType(Privilege.Type.DQL);
+            privilegeRelationVisitor.process(analysis.subQueryRelation(), context);
             return true;
         }
 
@@ -114,10 +116,8 @@ class PrivilegeValidator {
 
         @Override
         protected Boolean visitDeleteStatement(DeleteAnalyzedStatement analysis, PrivilegeContext context) {
-            context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.TABLE,
-                Privilege.Type.DML,
-                analysis.analyzedRelation().tableInfo().ident().toString(),
-                context.sessionContext().user());
+            context.setType(Privilege.Type.DML);
+            privilegeRelationVisitor.process(analysis.analyzedRelation(), context);
             return true;
         }
 
@@ -132,30 +132,22 @@ class PrivilegeValidator {
 
         @Override
         protected Boolean visitInsertFromSubQueryStatement(InsertFromSubQueryAnalyzedStatement analysis, PrivilegeContext context) {
-            context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.TABLE,
-                Privilege.Type.DML,
-                analysis.tableInfo().ident().toString(),
-                context.sessionContext().user());
+            context.setType(Privilege.Type.DML);
             privilegeRelationVisitor.process(analysis.subQueryRelation(), context);
             return true;
         }
 
         @Override
         protected Boolean visitSelectStatement(SelectAnalyzedStatement analysis, PrivilegeContext context) {
-            context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.TABLE,
-                Privilege.Type.DQL,
-                analysis.relation().getQualifiedName().toString(),
-                context.sessionContext().user());
+            context.setType(Privilege.Type.DQL);
             privilegeRelationVisitor.process(analysis.relation(), context);
             return true;
         }
 
         @Override
         protected Boolean visitUpdateStatement(UpdateAnalyzedStatement analysis, PrivilegeContext context) {
-            context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.TABLE,
-                Privilege.Type.DML,
-                analysis.sourceRelation().getQualifiedName().toString(),
-                context.sessionContext().user());
+            context.setType(Privilege.Type.DML);
+            privilegeRelationVisitor.process(analysis.sourceRelation(), context);
             return true;
         }
 
@@ -215,10 +207,8 @@ class PrivilegeValidator {
 
         @Override
         public Boolean visitOptimizeTableStatement(OptimizeTableAnalyzedStatement analysis, PrivilegeContext context) {
-            if (!context.isSuperUser(context.sessionContext().user())) {
-                context.throwUnauthorized(context.sessionContext().user());
-            }
-            return true;
+            throwUnauthorized(context.sessionContext().user());
+            return false;
         }
 
         @Override
@@ -251,15 +241,13 @@ class PrivilegeValidator {
         @Override
         public Boolean visitSetStatement(SetAnalyzedStatement analysis, PrivilegeContext context) {
             if (analysis.scope().equals(SetStatement.Scope.GLOBAL)) {
-                if (!context.isSuperUser(context.sessionContext().user())) {
-                    context.throwUnauthorized(context.sessionContext().user());
-                }
-            } else {
-                context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.CLUSTER,
-                    Privilege.Type.DQL,
-                    null,
-                    context.sessionContext().user());
+                throwUnauthorized(context.sessionContext().user());
+                return false;
             }
+            context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.CLUSTER,
+                Privilege.Type.DQL,
+                null,
+                context.sessionContext().user());
             return true;
         }
 
@@ -283,9 +271,7 @@ class PrivilegeValidator {
 
         @Override
         public Boolean visitKillAnalyzedStatement(KillAnalyzedStatement analysis, PrivilegeContext context) {
-            if (!context.isSuperUser(context.sessionContext().user())) {
-                context.throwUnauthorized(context.sessionContext().user());
-            }
+            throwUnauthorized(context.sessionContext().user());
             return true;
         }
 
@@ -336,10 +322,8 @@ class PrivilegeValidator {
 
         @Override
         public Boolean visitResetAnalyzedStatement(ResetAnalyzedStatement resetAnalyzedStatement, PrivilegeContext context) {
-            if (!context.isSuperUser(context.sessionContext().user())) {
-                context.throwUnauthorized(context.sessionContext().user());
-            }
-            return true;
+            throwUnauthorized(context.sessionContext().user());
+            return false;
         }
 
         @Override
@@ -349,7 +333,7 @@ class PrivilegeValidator {
 
         @Override
         public Boolean visitBegin(AnalyzedBegin analyzedBegin, PrivilegeContext context) {
-            context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.SCHEMA,
+            context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.CLUSTER,
                 Privilege.Type.DQL,
                 null,
                 context.sessionContext().user());
@@ -366,17 +350,14 @@ class PrivilegeValidator {
 
         @Override
         public Boolean visitQueriedTable(QueriedTable table, PrivilegeContext context) {
-            context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.TABLE,
-                Privilege.Type.DQL,
-                table.tableRelation().getQualifiedName().toString(),
-                context.sessionContext().user());
+            process(table.tableRelation(), context);
             return true;
         }
 
         @Override
         public Boolean visitQueriedDocTable(QueriedDocTable table, PrivilegeContext context) {
             context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.TABLE,
-                Privilege.Type.DQL,
+                context.type(),
                 table.tableRelation().getQualifiedName().toString(),
                 context.sessionContext().user());
             return true;
@@ -393,7 +374,7 @@ class PrivilegeValidator {
         @Override
         public Boolean visitTableRelation(TableRelation tableRelation, PrivilegeContext context) {
             context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.TABLE,
-                Privilege.Type.DQL,
+                context.type(),
                 tableRelation.getQualifiedName().toString(),
                 context.sessionContext().user());
             return true;
@@ -402,17 +383,8 @@ class PrivilegeValidator {
         @Override
         public Boolean visitDocTableRelation(DocTableRelation relation, PrivilegeContext context) {
             context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.TABLE,
-                Privilege.Type.DQL,
+                context.type(),
                 relation.getQualifiedName().toString(),
-                context.sessionContext().user());
-            return true;
-        }
-
-        @Override
-        public Boolean visitExplain(ExplainAnalyzedStatement explainAnalyzedStatement, PrivilegeContext context) {
-            context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.TABLE,
-                Privilege.Type.DQL,
-                explainAnalyzedStatement.getQualifiedName().toString(),
                 context.sessionContext().user());
             return true;
         }
@@ -420,7 +392,7 @@ class PrivilegeValidator {
         @Override
         public Boolean visitTableFunctionRelation(TableFunctionRelation tableFunctionRelation, PrivilegeContext context) {
             context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.TABLE,
-                Privilege.Type.DQL,
+                context.type(),
                 tableFunctionRelation.tableInfo().ident().toString(),
                 context.sessionContext().user());
             return true;

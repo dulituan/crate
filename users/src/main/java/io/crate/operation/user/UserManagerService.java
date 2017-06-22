@@ -162,15 +162,18 @@ public class UserManagerService implements UserManager, ClusterStateListener {
     @Override
     public void validateException(Throwable t, SessionContext sessionContext){
         if (t instanceof TableUnknownException) {
-            raiseMissingPrivilegeException(Privilege.Clazz.SCHEMA, null, null, sessionContext.user());
+            raiseMissingPrivilegeException(Privilege.Clazz.SCHEMA, null, ((TableUnknownException) t).getTableIdent().split("\\.")[0], sessionContext.user());
+        }
+        if (t instanceof AnalyzerUnknownException) {
+            raiseMissingPrivilegeException(Privilege.Clazz.CLUSTER, null, null, sessionContext.user());
+        }
+        if (t instanceof ColumnUnknownException) {
+            raiseMissingPrivilegeException(Privilege.Clazz.TABLE, null, ((ColumnUnknownException) t).getTableIdent().toString(), sessionContext.user());
         }
         if (t instanceof ResourceUnknownException) {
             raiseMissingPrivilegeException(Privilege.Clazz.CLUSTER, null, null, sessionContext.user());
         }
         if (t instanceof ConflictException) {
-            raiseMissingPrivilegeException(Privilege.Clazz.CLUSTER, null, null, sessionContext.user());
-        }
-        if (t instanceof RepositoryUnknownException) {
             raiseMissingPrivilegeException(Privilege.Clazz.CLUSTER, null, null, sessionContext.user());
         }
     }

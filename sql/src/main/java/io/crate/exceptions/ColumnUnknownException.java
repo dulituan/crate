@@ -21,12 +21,21 @@
 
 package io.crate.exceptions;
 
+import io.crate.metadata.TableIdent;
+
 import java.util.Locale;
 
 public class ColumnUnknownException extends ResourceUnknownException {
 
-    public ColumnUnknownException(String columnName) {
+    private TableIdent tableIdent;
+
+    public ColumnUnknownException(String columnName, TableIdent tableIdent) {
         super(String.format(Locale.ENGLISH, "Column %s unknown", columnName));
+        this.tableIdent = tableIdent;
+    }
+
+    public TableIdent getTableIdent() {
+        return tableIdent;
     }
 
     @Override

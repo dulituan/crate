@@ -20,19 +20,25 @@ package io.crate.operation.user;
 
 
 import io.crate.action.sql.SessionContext;
-import io.crate.exceptions.UnauthorizedException;
-import org.elasticsearch.common.Nullable;
-
-import java.util.Locale;
+import io.crate.analyze.user.Privilege;
 
 class PrivilegeContext {
 
     private final SessionContext sessionContext;
     private final UserManager userManager;
+    private Privilege.Type type;
 
     PrivilegeContext(SessionContext sessionContext, UserManager userManager) {
         this.sessionContext = sessionContext;
         this.userManager = userManager;
+    }
+
+    public void setType(Privilege.Type type) {
+        this.type = type;
+    }
+
+    public Privilege.Type type() {
+        return type;
     }
 
     public SessionContext sessionContext() {
@@ -41,15 +47,5 @@ class PrivilegeContext {
 
     public UserManager userManager() {
         return userManager;
-    }
-
-    public boolean isSuperUser(@Nullable User user) {
-        return user != null && user.roles().contains(User.Role.SUPERUSER);
-    }
-
-    public void throwUnauthorized(@Nullable User user) {
-        String userName = user != null ? user.name() : null;
-        throw new UnauthorizedException(
-            String.format(Locale.ENGLISH, "User \"%s\" is not authorized to execute statement", userName));
     }
 }

@@ -26,6 +26,7 @@ import io.crate.exceptions.AmbiguousColumnException;
 import io.crate.exceptions.ColumnUnknownException;
 import io.crate.exceptions.RelationUnknownException;
 import io.crate.metadata.ColumnIdent;
+import io.crate.metadata.TableIdent;
 import io.crate.metadata.table.Operation;
 import io.crate.sql.tree.QualifiedName;
 
@@ -115,7 +116,13 @@ public class FullQualifedNameFieldProvider implements FieldProvider<Field> {
             if (!schemaMatched || !tableNameMatched) {
                 throw RelationUnknownException.of(columnSchema, columnTableName);
             }
-            throw new ColumnUnknownException(columnIdent.sqlFqn());
+            QualifiedName tableName = sources.entrySet().iterator().next().getKey();
+            if (tableName.getParts().size() > 1) {
+                throw new ColumnUnknownException(columnIdent.sqlFqn(), new TableIdent(tableName.getSuffix(), tableName.getSuffix()));
+            } else {
+                throw new ColumnUnknownException(columnIdent.sqlFqn(), new TableIdent(null, tableName.getParts().get(0)));
+
+            }
         }
         return lastField;
     }

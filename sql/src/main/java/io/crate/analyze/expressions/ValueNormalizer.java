@@ -121,7 +121,7 @@ public class ValueNormalizer {
                     dynamicReference = ((DocTableInfo) tableInfo).getDynamic(nestedIdent, true);
                 }
                 if (dynamicReference == null) {
-                    throw new ColumnUnknownException(nestedIdent.sqlFqn());
+                    throw new ColumnUnknownException(nestedIdent.sqlFqn(), tableInfo.ident());
                 }
                 DataType type = DataTypes.guessType(entry.getValue());
                 if (type == null) {

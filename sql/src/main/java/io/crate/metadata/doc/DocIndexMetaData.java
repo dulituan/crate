@@ -546,7 +546,7 @@ public class DocIndexMetaData {
             return;
         }
         Collection<Reference> references = this.references.values();
-        TableReferenceResolver tableReferenceResolver = new TableReferenceResolver(references);
+        TableReferenceResolver tableReferenceResolver = new TableReferenceResolver(references, ident);
         ExpressionAnalyzer expressionAnalyzer = new ExpressionAnalyzer(
             functions, SessionContext.SYSTEM_SESSION, ParamTypeHints.EMPTY, tableReferenceResolver, null);
         ExpressionAnalysisContext context = new ExpressionAnalysisContext();

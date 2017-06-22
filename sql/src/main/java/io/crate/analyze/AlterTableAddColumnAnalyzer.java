@@ -116,7 +116,7 @@ class AlterTableAddColumnAnalyzer {
         }
 
         for (ColumnIdent columnIdent : tableInfo.partitionedBy()) {
-            tableElements.changeToPartitionedByColumn(columnIdent, true);
+            tableElements.changeToPartitionedByColumn(columnIdent, true, tableInfo.ident());
         }
     }
 

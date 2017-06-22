@@ -23,7 +23,6 @@
 package io.crate.operation.user;
 
 import io.crate.analyze.user.Privilege;
-
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
