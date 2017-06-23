@@ -1,0 +1,34 @@
+.. _ref-deny:
+
+========
+``DENY``
+========
+
+Denies a privilege to an existing user, either on the cluster, or on a specific
+schema, or on a specific table.
+
+Synopsis
+========
+
+.. code-block:: psql
+
+  DENY { { DQL | DML | DDL [,...] } | ALL [ PRIVILEGES ] }
+  [{ ON SCHEMA schema_name |
+    ON TABLE  table_ident  }]
+  TO user_name [, ...];
+
+Description
+===========
+
+``DENY`` is a management statement to deny a ``DQL``, ``DML`` or ``DDL`` privilege
+on the cluster, or on a specific schema, or on a specific table from one or many
+existing users.
+
+For usage of the ``DENY`` statement see :ref:`administration-privileges`.
+
+Parameters
+==========
+
+:schema_name: The name of an existing schema.
+:table_ident: The ident of an existing table.
+:user_name: The name of an existing user.

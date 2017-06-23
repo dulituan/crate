@@ -4,7 +4,8 @@
 ``REVOKE``
 ==========
 
-Revokes privilege from an existing user.
+Revokes a previously granted or denied privilege from an existing user,
+either on the cluster, or on a specific schema, or on a specific table.
 
 Synopsis
 ========
@@ -12,18 +13,22 @@ Synopsis
 .. code-block:: psql
 
   REVOKE { { DQL | DML | DDL [,...] } | ALL [ PRIVILEGES ] }
+  [{ ON SCHEMA schema_name |
+    ON TABLE  table_ident  }]
   FROM user_name [, ...];
 
 Description
 ===========
 
 ``REVOKE`` is a management statement to revoke a previously granted
-``DQL``, ``DML`` or ``DDL`` privilege on the cluster from one or
-many existing users.
+``DQL``, ``DML`` or ``DDL`` privilege on the cluster, or on a specific
+schema, or on a specific table from one or many existing users.
 
 For usage of the ``REVOKE`` statement see :ref:`administration-privileges`.
 
 Parameters
 ==========
 
+:schema_name: The name of an existing schema.
+:table_ident: The ident of an existing table.
 :user_name: The name of an existing user.

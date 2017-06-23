@@ -4,7 +4,8 @@
 ``GRANT``
 =========
 
-Grants privilege to an existing user.
+Grants privilege to an existing user, on the whole cluster or a specific
+schema or table.
 
 Synopsis
 ========
@@ -12,17 +13,22 @@ Synopsis
 .. code-block:: psql
 
   GRANT { { DQL | DML | DDL [,...] } | ALL [ PRIVILEGES ] }
+  [{ ON SCHEMA schema_name |
+    ON TABLE  table_ident }]
   TO user_name [, ...];
 
 Description
 ===========
 
 ``GRANT`` is a management statement to grant a ``DQL``, ``DML`` or ``DDL``
-privilege on the cluster to one or many existing users.
+privilege on the cluster, or on a specific schema, or on a specific table
+to one or many existing users.
 
 For usage of the ``GRANT`` statement see :ref:`administration-privileges`.
 
 Parameters
 ==========
 
+:schema_name: The name of an existing schema.
+:table_ident: The ident of an existing table.
 :user_name: The name of an existing user.
