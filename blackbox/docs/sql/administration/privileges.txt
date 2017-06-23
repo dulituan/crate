@@ -12,9 +12,9 @@ Cluster Privileges
     no user privilege checks, and every statement will be executed
     without the validation of privileges.
 
-User privileges can either be applied on a cluster level, they are then
-propagated to all tables and schemas of the cluster, or they can be applied
-on a specific schema or on a specif table.
+The superuser uses ``GRANT``, ``DENY`` and ``REVOKE`` statements to control
+access to the resource. The privileges are either applied on the whole cluster
+or on instances of objects such as schema, or table.
 
 .. note::
 
@@ -106,17 +106,24 @@ SQL statement, for example::
     cr> GRANT DML TO wolfgang;
     GRANT OK, 1 row affected (... sec)
 
-A privilege can be granted on a specific schema, like this::
+``DQL`` privilege can be granted on the sys schema to user wolfgang,
+like this::
 
     cr> GRANT DQL ON SCHEMA sys TO wolfgang;
     GRANT OK, 1 row affected (... sec)
 
-A privilege can be granted on a specific table, like this::
+The following statement will grant all privileges on table doc.books to user
+wolfgang::
 
-    cr> GRANT DQL ON TABLE doc.books TO wolfgang;
-    GRANT OK, 1 row affected (... sec)
+    cr> GRANT ALL PRIVILEGES ON TABLE doc.books TO wolfgang;
+    GRANT OK, 3 row affected (... sec)
 
-If no schema is specified in the table ident, the current schema will be used.
+Using "ALL PRIVILEGES" is a shortcut to grant all the currently grantable
+privileges to a user, namely ``DQL``, ``DML`` and ``DDL``.
+
+.. note::
+    If no schema is specified in the table ``ident``, the table will be
+    looked up in the current schema.
 
 If a user with the username specified in the SQL statement does not exist the
 statement returns an error::
@@ -124,95 +131,62 @@ statement returns an error::
     cr> GRANT DQL TO layla;
     UserDoesNotExistException ...
 
-To grant ``ALL PRIVILEGES`` to user will on the cluster, we can use the
-following syntax::
-
-    cr> GRANT ALL PRIVILEGES TO will;
-    GRANT OK, 2 rows affected (... sec)
-
-Using "ALL PRIVILEGES" is a shortcut to grant all the currently grantable
-privileges to a user, namely ``DQL``, ``DML`` and ``DDL``.
-
 Privileges can be granted to multiple users in the same statement, like so::
 
     cr> GRANT DDL ON TABLE doc.books TO wolfgang, will;
-    GRANT OK, 2 row affected (... sec)
+    GRANT OK, 1 row affected (... sec)
 
 ``DENY``
 ........
 
-To deny a privilege to a user on the whole cluster use the
+To deny a privilege to an existing user on the whole cluster, use the
 :doc:`/sql/reference/deny` SQL statement, for example::
 
     cr> DENY DDL from will;
     DENY OK, 1 row affected (... sec)
 
-A privilege can be denied on a specific schema, like this::
+``DQL`` privilege can be denied on the sys schema to user wolfgang,
+like this::
 
     cr> DENY DQL ON SCHEMA sys TO wolfgang;
     DENY OK, 1 row affected (... sec)
 
-A privilege can be denied on a specific table, like this::
+The following statement will deny ``DQL`` privilege on table doc.books to user
+wolfgang::
 
     cr> DENY DQL ON TABLE doc.books TO wolfgang;
     DENY OK, 1 row affected (... sec)
 
-If no schema is specified in the table ident, the current schema will be used.
-
-If a user with the username specified in the SQL statement does not exist
-the statement returns an error::
-
-    cr> DENY DDL FROM layla;
-    UserDoesNotExistException ...
-
 ``DENY ALL`` or ``DENY ALL PRIVILEGES`` will deny all privileges to a user,
 it can be used like this::
 
-    cr> DENY ALL FROM wolfgang;
+    cr> DENY ALL TO will;
     DENY OK, 3 row affected (... sec)
-
-Privileges can be denied from multiple users in the same statement,
-like so::
-
-    cr> DENY DDL FROM wolfgang, will;
-    DENY OK, 2 row affected (... sec)
 
 ``REVOKE``
 ..........
 
 To revoke a privilege that was previously granted or denied to a user
-use the :doc:`/sql/reference/revoke` SQL statement, for example::
-
-    cr> REVOKE DDL from will;
-    REVOKE OK, 1 row affected (... sec)
-
-A privilege can be revoked on a specific schema, like this::
+use the :doc:`/sql/reference/revoke` SQL statement, for example the
+``DQL`` privilege that was previously denied to user wolfgang on the
+*sys* schema, can be revoked like this ::
 
     cr> REVOKE DQL ON SCHEMA sys FROM wolfgang;
     REVOKE OK, 1 row affected (... sec)
 
-A privilege can be revoked on a specific table, like this::
+The privileges that were granted and denied to user wolfgang on doc.books
+can be revoked, like this::
 
-    cr> REVOKE DQL ON TABLE doc.books TO wolfgang;
-    REVOKE OK, 1 row affected (... sec)
-
-If a user with the username specified in the SQL statement does not exist the
-statement returns an error::
-
-    cr> REVOKE DDL FROM layla;
-    UserDoesNotExistException ...
-
-``REVOKE ALL`` or ``REVOKE ALL PRIVILEGES`` will revoke all privileges
-that were previously granted to a user, it can be used like this::
-
-    cr> REVOKE ALL FROM wolfgang;
+    cr> REVOKE ALL ON TABLE doc.books TO wolfgang;
     REVOKE OK, 3 row affected (... sec)
 
-Privileges can be revoked from multiple users in the same statement,
-like so::
+.. note::
 
-    cr> REVOKE DDL FROM wolfgang, will;
-    REVOKE OK, 2 row affected (... sec)
+    The ``REVOKE`` statement can remove only privileges that have been granted
+    or denied through the ``GRANT`` or ``DENY`` statements. If the privilege
+    on a specific object was not explicitly granted, the ``REVOKE`` statement
+    has no effect. The effect of the ``REVOKE`` statement will be reflected
+    in the row count.
 
 List Privileges
 ===============

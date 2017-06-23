@@ -4,8 +4,7 @@
 ``DENY``
 ========
 
-Denies a privilege to an existing user, either on the cluster, or on a specific
-schema, or on a specific table.
+Denies privilege to an existing user on a specific object.
 
 Synopsis
 ========
@@ -20,9 +19,8 @@ Synopsis
 Description
 ===========
 
-``DENY`` is a management statement to deny a ``DQL``, ``DML`` or ``DDL`` privilege
-on the cluster, or on a specific schema, or on a specific table from one or many
-existing users.
+``DENY`` is a management statement to deny one or many privileges
+on a specific object to one or many existing users.
 
 For usage of the ``DENY`` statement see :ref:`administration-privileges`.
 
