@@ -116,13 +116,8 @@ public class FullQualifedNameFieldProvider implements FieldProvider<Field> {
             if (!schemaMatched || !tableNameMatched) {
                 throw RelationUnknownException.of(columnSchema, columnTableName);
             }
-            QualifiedName tableName = sources.entrySet().iterator().next().getKey();
-            if (tableName.getParts().size() > 1) {
-                throw new ColumnUnknownException(columnIdent.sqlFqn(), new TableIdent(tableName.getSuffix(), tableName.getSuffix()));
-            } else {
-                throw new ColumnUnknownException(columnIdent.sqlFqn(), new TableIdent(null, tableName.getParts().get(0)));
-
-            }
+            TableIdent tableIdent = new TableIdent(columnSchema, columnTableName);
+            throw new ColumnUnknownException(columnIdent.sqlFqn(), tableIdent);
         }
         return lastField;
     }

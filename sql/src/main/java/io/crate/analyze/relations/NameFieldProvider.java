@@ -61,10 +61,7 @@ public class NameFieldProvider implements FieldProvider<Field> {
         Field field = relation.getField(columnIdent, operation);
         if (field == null) {
             QualifiedName qname = relation.getQualifiedName();
-            if (qname.getPrefix().isPresent()) {
-                throw new ColumnUnknownException(columnIdent.sqlFqn(), new TableIdent(qname.getPrefix().toString(), qname.getSuffix().toString()));
-            }
-            throw new ColumnUnknownException(columnIdent.sqlFqn(), new TableIdent(null, qname.getSuffix().toString()));
+            throw new ColumnUnknownException(columnIdent.sqlFqn(), TableIdent.fromIndexName(qname.toString()));
         }
         return field;
     }

@@ -28,7 +28,6 @@ import io.crate.action.sql.SessionContext;
 import io.crate.analyze.AnalyzedStatement;
 import io.crate.analyze.user.Privilege;
 import io.crate.breaker.CrateCircuitBreakerService;
-import io.crate.exceptions.PermissionDeniedException;
 import io.crate.operation.auth.AuthenticationProvider;
 import io.crate.operation.user.User;
 import io.crate.operation.user.UserManager;
@@ -78,8 +77,6 @@ public class RestSQLActionTest extends CrateUnitTest {
         public User findUser(String userName) {
             return new User(userName, Collections.emptySet(), ImmutableSet.of());
         }
-        @Override
-        public void raiseMissingPrivilegeException(Privilege.Clazz clazz, Privilege.Type type, String ident, User user) throws PermissionDeniedException{}
 
         @Override
         public void validateException(Throwable t, SessionContext context) {

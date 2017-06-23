@@ -18,12 +18,13 @@
 
 package io.crate.operation.user;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import io.crate.action.FutureActionListener;
 import io.crate.action.sql.SessionContext;
 import io.crate.analyze.AnalyzedStatement;
 import io.crate.analyze.user.Privilege;
-import io.crate.exceptions.*;
+import io.crate.exceptions.ResourceUnknownException;
 import io.crate.metadata.UsersMetaData;
 import io.crate.metadata.UsersPrivilegesMetaData;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -34,6 +35,7 @@ import org.elasticsearch.common.Nullable;
 
 import java.util.Collection;
 import java.util.EnumSet;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
@@ -42,7 +44,7 @@ public class UserManagerService implements UserManager, ClusterStateListener {
 
     public static User CRATE_USER = new User("crate", EnumSet.of(User.Role.SUPERUSER), ImmutableSet.of());
 
-    private static final PrivilegeValidator PERMISSION_VISITOR = new PrivilegeValidator();
+    private static final PrivilegeValidator PRIVILEGE_VALIDATOR = new PrivilegeValidator();
 
     static {
         MetaData.registerPrototype(UsersMetaData.TYPE, UsersMetaData.PROTO);
@@ -95,6 +97,7 @@ public class UserManagerService implements UserManager, ClusterStateListener {
 
     @Override
     public CompletableFuture<Long> applyPrivileges(Collection<String> userNames, Collection<Privilege> privileges) {
+        validateUsernames(userNames, this);
         FutureActionListener<PrivilegesResponse, Long> listener = new FutureActionListener<>(PrivilegesResponse::affectedRows);
         transportPrivilegesAction.execute(new PrivilegesRequest(userNames, privileges), listener);
         return listener;
@@ -105,9 +108,8 @@ public class UserManagerService implements UserManager, ClusterStateListener {
     }
 
     @Override
-    public void ensureAuthorized(AnalyzedStatement analyzedStatement,
-                                 SessionContext sessionContext) {
-        PERMISSION_VISITOR.validate(analyzedStatement, new PrivilegeContext(sessionContext, this));
+    public void ensureAuthorized(AnalyzedStatement analyzedStatement, SessionContext sessionContext) {
+        PRIVILEGE_VALIDATOR.validate(analyzedStatement, sessionContext);
     }
 
     @Override
@@ -131,91 +133,21 @@ public class UserManagerService implements UserManager, ClusterStateListener {
     }
 
     @Override
-    public void raiseMissingPrivilegeException(Privilege.Clazz clazz, @Nullable Privilege.Type type, String ident, @Nullable User user) throws PermissionDeniedException {
-        if (null == user) {
-            // this can occur when the hba setting is not there,
-            // in this case there is no authentication and everyone
-            // can access the cluster
-            return;
-        }
-        if (null == type) {
-            // when type is null, we check if the user has any privilege type
-            if (user.hasAnyPrivilege(clazz, ident)) {
-                return;
-            } else {
-                throw new PermissionDeniedException(user.name());
-            }
-        }
-
-        if (!user.isSuperUser() && Privilege.Type.DCL.equals(type)) {
-            throw new PermissionDeniedException(user.name(), type);
-        }
-
-        if (user.isSuperUser()) {
-            return;
-        } else if (!user.hasPrivilege(type, clazz, ident)) {
-            throw new PermissionDeniedException(user.name(), type);
-        }
+    public void validateException(Throwable t, SessionContext sessionContext) {
+        Privileges.validateException(t, sessionContext);
     }
 
-    @Override
-    public void validateException(Throwable t, SessionContext sessionContext) {
-        String schemaName;
-        if (sessionContext.user() != null && sessionContext.user().isSuperUser()) {
-            return;
-        }
-        if (t instanceof TableUnknownException) {
-            String[] parts = ((TableUnknownException) t).getTableIdent().split("\\.");
-            schemaName = parts.length > 1 ? parts[0] : sessionContext.defaultSchema();
-            raiseMissingPrivilegeException(Privilege.Clazz.SCHEMA, null, schemaName, sessionContext.user());
-        }
-        if (t instanceof AnalyzerUnknownException) {
-            raiseMissingPrivilegeException(Privilege.Clazz.CLUSTER, null, null, sessionContext.user());
-        }
-        if (t instanceof ColumnUnknownException) {
-            raiseMissingPrivilegeException(Privilege.Clazz.TABLE, null, ((ColumnUnknownException) t).getTableIdent().toString(), sessionContext.user());
-        }
-        if (t instanceof SchemaUnknownException) {
-            raiseMissingPrivilegeException(Privilege.Clazz.CLUSTER, null, null, sessionContext.user());
-        }
-        if (t instanceof RelationUnknownException) {
-            if (((RelationUnknownException) t).qualifiedName().getParts().size() > 1) {
-                schemaName = ((RelationUnknownException) t).qualifiedName().getParts().get(0);
-            } else {
-                schemaName = sessionContext.defaultSchema();
+    @VisibleForTesting
+    static void validateUsernames(Collection<String> userNames, UserLookup userLookup) {
+        for (String userName : userNames) {
+            User user = userLookup.findUser(userName);
+            if (user == null) {
+                throw new ResourceUnknownException(String.format(
+                    Locale.ENGLISH, "User '%s' does not exists", userName));
+            } else if (user.isSuperUser()) {
+                throw new UnsupportedOperationException(String.format(
+                    Locale.ENGLISH, "Cannot alter privileges for superuser '%s'", userName));
             }
-            raiseMissingPrivilegeException(Privilege.Clazz.SCHEMA, null, schemaName, sessionContext.user());
-        }
-        if (t instanceof RepositoryUnknownException) {
-            raiseMissingPrivilegeException(Privilege.Clazz.CLUSTER, null, null, sessionContext.user());
-        }
-        if (t instanceof SnapshotUnknownException) {
-            raiseMissingPrivilegeException(Privilege.Clazz.CLUSTER, null, null, sessionContext.user());
-        }
-        if (t instanceof UserDefinedFunctionUnknownException) {
-            raiseMissingPrivilegeException(Privilege.Clazz.SCHEMA, null, ((UserDefinedFunctionUnknownException) t).getSchema(), sessionContext.user());
-        }
-        if (t instanceof PartitionUnknownException) {
-            raiseMissingPrivilegeException(Privilege.Clazz.SCHEMA, null, ((PartitionUnknownException) t).getTableIdent().schema(), sessionContext.user());
-        }
-        if (t instanceof TableAlreadyExistsException) {
-            schemaName = ((TableAlreadyExistsException) t).getSchema() != null ? ((TableAlreadyExistsException) t).getSchema() : sessionContext.defaultSchema();
-            raiseMissingPrivilegeException(Privilege.Clazz.SCHEMA, null, schemaName, sessionContext.user());
-        }
-        if (t instanceof PartitionUnknownException) {
-            raiseMissingPrivilegeException(Privilege.Clazz.TABLE, null, ((PartitionUnknownException) t).getTableIdent().toString(), sessionContext.user());
-        }
-        if (t instanceof RepositoryAlreadyExistsException) {
-            raiseMissingPrivilegeException(Privilege.Clazz.CLUSTER, null, null, sessionContext.user());
-        }
-        if (t instanceof SnapshotAlreadyExistsExeption) {
-            raiseMissingPrivilegeException(Privilege.Clazz.CLUSTER, null, null, sessionContext.user());
-        }
-        if (t instanceof UserDefinedFunctionAlreadyExistsException) {
-            raiseMissingPrivilegeException(Privilege.Clazz.SCHEMA, null, ((UserDefinedFunctionAlreadyExistsException) t).getSchema(), sessionContext.user());
-        }
-        if (t instanceof TableAliasSchemaException) {
-            raiseMissingPrivilegeException(Privilege.Clazz.SCHEMA, null, ((TableAliasSchemaException) t).getSchema(), sessionContext.user());
         }
     }
 }

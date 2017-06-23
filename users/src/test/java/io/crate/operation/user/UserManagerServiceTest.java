@@ -20,14 +20,17 @@ package io.crate.operation.user;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
 import io.crate.action.sql.Option;
 import io.crate.action.sql.SessionContext;
 import io.crate.analyze.CreateUserAnalyzedStatement;
 import io.crate.analyze.DropUserAnalyzedStatement;
+import io.crate.exceptions.ResourceUnknownException;
 import io.crate.exceptions.UnauthorizedException;
 import io.crate.metadata.UsersMetaData;
 import io.crate.metadata.UsersPrivilegesMetaData;
 import io.crate.test.integration.CrateDummyClusterServiceUnitTest;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.util.Collections;
@@ -35,10 +38,17 @@ import java.util.Set;
 
 import static io.crate.operation.user.UserManagerService.CRATE_USER;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.is;
 
 public class UserManagerServiceTest extends CrateDummyClusterServiceUnitTest {
+
+    private UserManagerService userManagerService;
+
+    @Before
+    public void setUpUserManager() throws Exception {
+        userManagerService = new UserManagerService(null, null, null, clusterService);
+    }
 
     @Test
     public void testNullAndEmptyMetaData() {
@@ -60,16 +70,14 @@ public class UserManagerServiceTest extends CrateDummyClusterServiceUnitTest {
     public void testCreateUserStatementCheckPermissionFalse() {
         expectedException.expect(UnauthorizedException.class);
         expectedException.expectMessage(is("User \"noPriviligeUser\" is not authorized to execute statement"));
-        UserManagerService userManagerService = new UserManagerService(null, null, null, clusterService);
         userManagerService.ensureAuthorized(new CreateUserAnalyzedStatement(""),
             new SessionContext(0, Option.NONE, "my_schema", new User("noPriviligeUser",
-                Collections.EMPTY_SET,
-                Collections.EMPTY_SET)));
+                Collections.emptySet(),
+                Collections.emptySet())));
     }
 
     @Test
     public void testCreateUserStatementCheckPermissionTrue() {
-        UserManagerService userManagerService = new UserManagerService(null, null, null, clusterService);
         userManagerService.ensureAuthorized(new CreateUserAnalyzedStatement("bla"),
             new SessionContext(0, Option.NONE, "my_schema", UserManagerService.CRATE_USER));
     }
@@ -78,17 +86,35 @@ public class UserManagerServiceTest extends CrateDummyClusterServiceUnitTest {
     public void testDropUserStatementCheckPermissionFalse() {
         expectedException.expect(UnauthorizedException.class);
         expectedException.expectMessage(is("User \"noPriviligeUser\" is not authorized to execute statement"));
-        UserManagerService userManagerService = new UserManagerService(null, null, null, clusterService);
         userManagerService.ensureAuthorized(new DropUserAnalyzedStatement("", false),
             new SessionContext(0, Option.NONE, "my_schema", new User("noPriviligeUser",
-                Collections.EMPTY_SET,
-                Collections.EMPTY_SET)));
+                Collections.emptySet(),
+                Collections.emptySet())));
     }
 
     @Test
     public void testDropUserStatementCheckPermissionTrue() {
-        UserManagerService userManagerService = new UserManagerService(null, null, null, clusterService);
         userManagerService.ensureAuthorized(new DropUserAnalyzedStatement("bla", false),
             new SessionContext(0, Option.NONE, "my_schema", UserManagerService.CRATE_USER));
+    }
+
+    @Test
+    public void testValidateExistingUserName() {
+        // must not throw an exception, user is found
+        UserManagerService.validateUsernames(Lists.newArrayList("ford"), s -> new User(s, Collections.emptySet(), Collections.emptySet()));
+    }
+
+    @Test
+    public void testValidateNonExistingUserNameThrowsException() {
+        expectedException.expect(ResourceUnknownException.class);
+        expectedException.expectMessage("User 'ford' does not exists");
+        UserManagerService.validateUsernames(Lists.newArrayList("ford"), s -> null);
+    }
+
+    @Test
+    public void testValidateSuperUserThrowsException() {
+        expectedException.expect(UnsupportedOperationException.class);
+        expectedException.expectMessage("Cannot alter privileges for superuser 'crate'");
+        UserManagerService.validateUsernames(Lists.newArrayList(CRATE_USER.name()), s -> CRATE_USER);
     }
 }

@@ -120,7 +120,7 @@ public class Analyzer {
         this.createFunctionAnalyzer = new CreateFunctionAnalyzer();
         this.dropFunctionAnalyzer = new DropFunctionAnalyzer();
         this.userManager = userManagerProvider.get();
-        this.privilegesAnalyzer = new PrivilegesAnalyzer(userManager);
+        this.privilegesAnalyzer = new PrivilegesAnalyzer();
     }
 
     public Analysis boundAnalyze(Statement statement, SessionContext sessionContext, ParameterContext parameterContext) {
@@ -129,9 +129,9 @@ public class Analyzer {
             AnalyzedStatement analyzedStatement = analyzedStatement(statement, analysis);
             userManager.ensureAuthorized(analyzedStatement, sessionContext);
             analysis.analyzedStatement(analyzedStatement);
-        } catch (Throwable t) {
-            userManager.validateException(t, sessionContext);
-            throw t;
+        } catch (Exception e) {
+            userManager.validateException(e, sessionContext);
+            throw e;
         }
         return analysis;
     }

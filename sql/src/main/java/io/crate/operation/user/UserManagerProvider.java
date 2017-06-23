@@ -26,7 +26,6 @@ import io.crate.action.sql.SessionContext;
 import io.crate.analyze.AnalyzedStatement;
 import io.crate.analyze.user.Privilege;
 import io.crate.concurrent.CompletableFutures;
-import io.crate.exceptions.PermissionDeniedException;
 import io.crate.exceptions.UnsupportedFeatureException;
 import io.crate.operation.auth.UserServiceFactory;
 import io.crate.operation.auth.UserServiceFactoryLoader;
@@ -105,11 +104,6 @@ public class UserManagerProvider implements Provider<UserManager> {
         @Override
         public User findUser(String userName) {
             return null;
-        }
-
-        @Override
-        public void raiseMissingPrivilegeException(Privilege.Clazz clazz, Privilege.Type type, String ident, @Nullable User user) throws PermissionDeniedException {
-
         }
 
         @Override

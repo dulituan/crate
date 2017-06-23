@@ -19,10 +19,57 @@
 package io.crate.operation.user;
 
 
-import io.crate.analyze.*;
-import io.crate.analyze.relations.*;
+import io.crate.action.sql.SessionContext;
+import io.crate.analyze.AddColumnAnalyzedStatement;
+import io.crate.analyze.AlterBlobTableAnalyzedStatement;
+import io.crate.analyze.AlterTableAnalyzedStatement;
+import io.crate.analyze.AlterTableOpenCloseAnalyzedStatement;
+import io.crate.analyze.AlterTableRenameAnalyzedStatement;
+import io.crate.analyze.AnalyzedBegin;
+import io.crate.analyze.AnalyzedStatement;
+import io.crate.analyze.AnalyzedStatementVisitor;
+import io.crate.analyze.CopyFromAnalyzedStatement;
+import io.crate.analyze.CopyToAnalyzedStatement;
+import io.crate.analyze.CreateAnalyzerAnalyzedStatement;
+import io.crate.analyze.CreateBlobTableAnalyzedStatement;
+import io.crate.analyze.CreateFunctionAnalyzedStatement;
+import io.crate.analyze.CreateRepositoryAnalyzedStatement;
+import io.crate.analyze.CreateSnapshotAnalyzedStatement;
+import io.crate.analyze.CreateTableAnalyzedStatement;
+import io.crate.analyze.CreateUserAnalyzedStatement;
+import io.crate.analyze.DeleteAnalyzedStatement;
+import io.crate.analyze.DropBlobTableAnalyzedStatement;
+import io.crate.analyze.DropFunctionAnalyzedStatement;
+import io.crate.analyze.DropRepositoryAnalyzedStatement;
+import io.crate.analyze.DropSnapshotAnalyzedStatement;
+import io.crate.analyze.DropTableAnalyzedStatement;
+import io.crate.analyze.DropUserAnalyzedStatement;
+import io.crate.analyze.ExplainAnalyzedStatement;
+import io.crate.analyze.InsertFromSubQueryAnalyzedStatement;
+import io.crate.analyze.InsertFromValuesAnalyzedStatement;
+import io.crate.analyze.KillAnalyzedStatement;
+import io.crate.analyze.MultiSourceSelect;
+import io.crate.analyze.OptimizeTableAnalyzedStatement;
+import io.crate.analyze.PrivilegesAnalyzedStatement;
+import io.crate.analyze.QueriedSelectRelation;
+import io.crate.analyze.QueriedTable;
+import io.crate.analyze.RefreshTableAnalyzedStatement;
+import io.crate.analyze.ResetAnalyzedStatement;
+import io.crate.analyze.RestoreSnapshotAnalyzedStatement;
+import io.crate.analyze.SelectAnalyzedStatement;
+import io.crate.analyze.SetAnalyzedStatement;
+import io.crate.analyze.ShowCreateTableAnalyzedStatement;
+import io.crate.analyze.UpdateAnalyzedStatement;
+import io.crate.analyze.relations.AnalyzedRelation;
+import io.crate.analyze.relations.AnalyzedRelationVisitor;
+import io.crate.analyze.relations.DocTableRelation;
+import io.crate.analyze.relations.QueriedDocTable;
+import io.crate.analyze.relations.TableFunctionRelation;
+import io.crate.analyze.relations.TableRelation;
 import io.crate.analyze.user.Privilege;
 import io.crate.exceptions.UnauthorizedException;
+import io.crate.metadata.PartitionName;
+import io.crate.metadata.TableIdent;
 import io.crate.sql.tree.SetStatement;
 import org.elasticsearch.common.Nullable;
 
@@ -30,382 +77,445 @@ import java.util.Locale;
 
 class PrivilegeValidator {
 
-    private static final PrivilegeStatementVisitor privilegeStatementVisitor = new PrivilegeStatementVisitor();
+    private static final StatementVisitor VISITOR = new StatementVisitor();
 
-    public Boolean validate(AnalyzedStatement analyzedStatement, PrivilegeContext context) {
-        if ( null == context.sessionContext().user()) {
+    /**
+     * Validates if the user has privileges for executing the given statement
+     */
+    void validate(AnalyzedStatement analyzedStatement, SessionContext sessionContext) {
+        User user = sessionContext.user();
+        if (user == null) {
             // this can occur when the hba setting is not there,
             // in this case there is no authentication and everyone
             // can access the cluster
-            return true;
+            return;
         }
-        if (context.sessionContext().user().isSuperUser()) {
-            return true;
+        if (user.isSuperUser()) {
+            return;
         }
-        return privilegeStatementVisitor.process(analyzedStatement, context);
+        VISITOR.process(analyzedStatement, new Context(sessionContext, this));
     }
 
-    private final static class PrivilegeStatementVisitor extends AnalyzedStatementVisitor<PrivilegeContext, Boolean> {
+    private static class Context {
 
-        private static final PrivilegeRelationVisitor privilegeRelationVisitor = new PrivilegeRelationVisitor();
+        private final SessionContext sessionContext;
+        private final PrivilegeValidator validator;
+        private Privilege.Type type;
+
+        Context(SessionContext sessionContext, PrivilegeValidator validator) {
+            this.sessionContext = sessionContext;
+            this.validator = validator;
+        }
+    }
+
+    private final static class StatementVisitor extends AnalyzedStatementVisitor<Context, Void> {
+
+        private static final RelationVisitor RELATION_VISITOR = new RelationVisitor();
 
         private static void throwUnauthorized(@Nullable User user) {
             String userName = user != null ? user.name() : null;
             throw new UnauthorizedException(
                 String.format(Locale.ENGLISH, "User \"%s\" is not authorized to execute statement", userName));
         }
+
+        private void visitRelation(AnalyzedRelation relation, Context context) {
+            assert context.type != null : "reuqired privilege type must be while validating relations";
+            RELATION_VISITOR.process(relation, context);
+        }
+
+
         @Override
-        protected Boolean visitAnalyzedStatement(AnalyzedStatement analyzedStatement, PrivilegeContext context) {
+        protected Void visitAnalyzedStatement(AnalyzedStatement analyzedStatement, Context context) {
             throw new UnsupportedOperationException(String.format(Locale.ENGLISH, "Can't handle \"%s\"", analyzedStatement));
         }
 
         @Override
-        protected Boolean visitCreateUserStatement(CreateUserAnalyzedStatement analysis, PrivilegeContext context) {
-            throwUnauthorized(context.sessionContext().user());
-            return false;
+        protected Void visitCreateUserStatement(CreateUserAnalyzedStatement analysis, Context context) {
+            throwUnauthorized(context.sessionContext.user());
+            return null;
         }
 
         @Override
-        protected Boolean visitDropUserStatement(DropUserAnalyzedStatement analysis, PrivilegeContext context) {
-            throwUnauthorized(context.sessionContext().user());
-            return false;
+        protected Void visitDropUserStatement(DropUserAnalyzedStatement analysis, Context context) {
+            throwUnauthorized(context.sessionContext.user());
+            return null;
         }
 
         @Override
-        public Boolean visitPrivilegesStatement(PrivilegesAnalyzedStatement analysis, PrivilegeContext context) {
-            throwUnauthorized(context.sessionContext().user());
-            return false;
+        public Void visitPrivilegesStatement(PrivilegesAnalyzedStatement analysis, Context context) {
+            throwUnauthorized(context.sessionContext.user());
+            return null;
         }
 
         @Override
-        public Boolean visitAlterTableStatement(AlterTableAnalyzedStatement analysis, PrivilegeContext context) {
-            context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.TABLE,
+        public Void visitAlterTableStatement(AlterTableAnalyzedStatement analysis, Context context) {
+            Privileges.raiseMissingPrivilegeException(
                 Privilege.Type.DDL,
+                Privilege.Clazz.TABLE,
                 analysis.table().ident().toString(),
-                context.sessionContext().user());
-            return true;
+                context.sessionContext.user());
+            return null;
         }
 
         @Override
-        protected Boolean visitCopyFromStatement(CopyFromAnalyzedStatement analysis, PrivilegeContext context) {
-            context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.TABLE,
+        protected Void visitCopyFromStatement(CopyFromAnalyzedStatement analysis, Context context) {
+            Privileges.raiseMissingPrivilegeException(
                 Privilege.Type.DML,
+                Privilege.Clazz.TABLE,
                 analysis.table().ident().toString(),
-                context.sessionContext().user());
-            return true;
+                context.sessionContext.user());
+            return null;
         }
 
         @Override
-        protected Boolean visitCopyToStatement(CopyToAnalyzedStatement analysis, PrivilegeContext context) {
-            context.setType(Privilege.Type.DQL);
-            privilegeRelationVisitor.process(analysis.subQueryRelation(), context);
-            return true;
+        protected Void visitCopyToStatement(CopyToAnalyzedStatement analysis, Context context) {
+            context.type = Privilege.Type.DQL;
+            visitRelation(analysis.subQueryRelation(), context);
+            return null;
         }
 
         @Override
-        protected Boolean visitCreateTableStatement(CreateTableAnalyzedStatement analysis, PrivilegeContext context) {
-            context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.TABLE,
+        protected Void visitCreateTableStatement(CreateTableAnalyzedStatement analysis, Context context) {
+            Privileges.raiseMissingPrivilegeException(
                 Privilege.Type.DDL,
-                analysis.tableIdent().toString(),
-                context.sessionContext().user());
-            return true;
+                Privilege.Clazz.SCHEMA,
+                analysis.tableIdent().schema(),
+                context.sessionContext.user());
+            return null;
         }
 
         @Override
-        protected Boolean visitCreateRepositoryAnalyzedStatement(CreateRepositoryAnalyzedStatement analysis, PrivilegeContext context) {
-            context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.CLUSTER,
+        protected Void visitCreateRepositoryAnalyzedStatement(CreateRepositoryAnalyzedStatement analysis, Context context) {
+            Privileges.raiseMissingPrivilegeException(
                 Privilege.Type.DDL,
+                Privilege.Clazz.CLUSTER,
                 null,
-                context.sessionContext().user());
-            return true;
+                context.sessionContext.user());
+            return null;
         }
 
         @Override
-        protected Boolean visitDeleteStatement(DeleteAnalyzedStatement analysis, PrivilegeContext context) {
-            context.setType(Privilege.Type.DML);
-            privilegeRelationVisitor.process(analysis.analyzedRelation(), context);
-            return true;
+        protected Void visitDeleteStatement(DeleteAnalyzedStatement analysis, Context context) {
+            context.type = Privilege.Type.DML;
+            visitRelation(analysis.analyzedRelation(), context);
+            return null;
         }
 
         @Override
-        protected Boolean visitInsertFromValuesStatement(InsertFromValuesAnalyzedStatement analysis, PrivilegeContext context) {
-            context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.TABLE,
+        protected Void visitInsertFromValuesStatement(InsertFromValuesAnalyzedStatement analysis, Context context) {
+            Privileges.raiseMissingPrivilegeException(
                 Privilege.Type.DML,
+                Privilege.Clazz.TABLE,
                 analysis.tableInfo().ident().toString(),
-                context.sessionContext().user());
-            return true;
+                context.sessionContext.user());
+            return null;
         }
 
         @Override
-        protected Boolean visitInsertFromSubQueryStatement(InsertFromSubQueryAnalyzedStatement analysis, PrivilegeContext context) {
-            context.setType(Privilege.Type.DML);
-            privilegeRelationVisitor.process(analysis.subQueryRelation(), context);
-            return true;
+        protected Void visitInsertFromSubQueryStatement(InsertFromSubQueryAnalyzedStatement analysis, Context context) {
+            Privileges.raiseMissingPrivilegeException(
+                Privilege.Type.DML,
+                Privilege.Clazz.TABLE,
+                analysis.tableInfo().ident().toString(),
+                context.sessionContext.user());
+            context.type = Privilege.Type.DQL;
+            visitRelation(analysis.subQueryRelation(), context);
+            return null;
         }
 
         @Override
-        protected Boolean visitSelectStatement(SelectAnalyzedStatement analysis, PrivilegeContext context) {
-            context.setType(Privilege.Type.DQL);
-            privilegeRelationVisitor.process(analysis.relation(), context);
-            return true;
+        protected Void visitSelectStatement(SelectAnalyzedStatement analysis, Context context) {
+            context.type = Privilege.Type.DQL;
+            visitRelation(analysis.relation(), context);
+            return null;
         }
 
         @Override
-        protected Boolean visitUpdateStatement(UpdateAnalyzedStatement analysis, PrivilegeContext context) {
-            context.setType(Privilege.Type.DML);
-            privilegeRelationVisitor.process(analysis.sourceRelation(), context);
-            return true;
+        protected Void visitUpdateStatement(UpdateAnalyzedStatement analysis, Context context) {
+            context.type = Privilege.Type.DML;
+            visitRelation(analysis.sourceRelation(), context);
+            return null;
         }
 
         @Override
-        protected Boolean visitCreateFunctionStatement(CreateFunctionAnalyzedStatement analysis, PrivilegeContext context) {
-            context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.SCHEMA,
+        protected Void visitCreateFunctionStatement(CreateFunctionAnalyzedStatement analysis, Context context) {
+            Privileges.raiseMissingPrivilegeException(
                 Privilege.Type.DDL,
+                Privilege.Clazz.SCHEMA,
                 analysis.schema(),
-                context.sessionContext().user());
-            return true;
+                context.sessionContext.user());
+            return null;
         }
 
         @Override
-        public Boolean visitDropFunctionStatement(DropFunctionAnalyzedStatement analysis, PrivilegeContext context) {
-            context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.SCHEMA,
+        public Void visitDropFunctionStatement(DropFunctionAnalyzedStatement analysis, Context context) {
+            Privileges.raiseMissingPrivilegeException(
                 Privilege.Type.DDL,
+                Privilege.Clazz.SCHEMA,
                 analysis.schema(),
-                context.sessionContext().user());
-            return true;
+                context.sessionContext.user());
+            return null;
         }
 
         @Override
-        protected Boolean visitDropTableStatement(DropTableAnalyzedStatement analysis, PrivilegeContext context) {
-            context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.TABLE,
+        protected Void visitDropTableStatement(DropTableAnalyzedStatement analysis, Context context) {
+            Privileges.raiseMissingPrivilegeException(
                 Privilege.Type.DDL,
+                Privilege.Clazz.TABLE,
                 analysis.tableIdent().toString(),
-                context.sessionContext().user());
-            return true;
+                context.sessionContext.user());
+            return null;
         }
 
         @Override
-        protected Boolean visitCreateAnalyzerStatement(CreateAnalyzerAnalyzedStatement analysis, PrivilegeContext context) {
-            context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.CLUSTER,
+        protected Void visitCreateAnalyzerStatement(CreateAnalyzerAnalyzedStatement analysis, Context context) {
+            Privileges.raiseMissingPrivilegeException(
                 Privilege.Type.DDL,
+                Privilege.Clazz.CLUSTER,
                 null,
-                context.sessionContext().user());
-            return true;
+                context.sessionContext.user());
+            return null;
         }
 
         @Override
-        public Boolean visitCreateBlobTableStatement(CreateBlobTableAnalyzedStatement analysis, PrivilegeContext context) {
-            context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.TABLE,
+        public Void visitCreateBlobTableStatement(CreateBlobTableAnalyzedStatement analysis, Context context) {
+            Privileges.raiseMissingPrivilegeException(
                 Privilege.Type.DDL,
+                Privilege.Clazz.SCHEMA,
+                analysis.tableIdent().schema(),
+                context.sessionContext.user());
+            return null;
+        }
+
+        @Override
+        public Void visitDropBlobTableStatement(DropBlobTableAnalyzedStatement analysis, Context context) {
+            Privileges.raiseMissingPrivilegeException(
+                Privilege.Type.DDL,
+                Privilege.Clazz.TABLE,
                 analysis.tableIdent().toString(),
-                context.sessionContext().user());
-            return true;
+                context.sessionContext.user());
+            return null;
         }
 
         @Override
-        public Boolean visitDropBlobTableStatement(DropBlobTableAnalyzedStatement analysis, PrivilegeContext context) {
-            context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.TABLE,
-                Privilege.Type.DDL,
-                analysis.tableIdent().toString(),
-                context.sessionContext().user());
-            return true;
+        public Void visitOptimizeTableStatement(OptimizeTableAnalyzedStatement analysis, Context context) {
+            throwUnauthorized(context.sessionContext.user());
+            return null;
         }
 
         @Override
-        public Boolean visitOptimizeTableStatement(OptimizeTableAnalyzedStatement analysis, PrivilegeContext context) {
-            throwUnauthorized(context.sessionContext().user());
-            return false;
-        }
-
-        @Override
-        public Boolean visitRefreshTableStatement(RefreshTableAnalyzedStatement analysis, PrivilegeContext context) {
-            context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.CLUSTER,
-                Privilege.Type.DQL,
-                null,
-                context.sessionContext().user());
-            return true;
-        }
-
-        @Override
-        public Boolean visitAlterTableRenameStatement(AlterTableRenameAnalyzedStatement analysis, PrivilegeContext context) {
-            context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.CLUSTER,
-                Privilege.Type.DDL,
-                analysis.targetTableIdent().toString(),
-                context.sessionContext().user());
-            return true;
-        }
-
-        @Override
-        public Boolean visitAlterBlobTableStatement(AlterBlobTableAnalyzedStatement analysis, PrivilegeContext context) {
-            context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.CLUSTER,
-                Privilege.Type.DDL,
-                analysis.table().ident().toString(),
-                context.sessionContext().user());
-            return true;
-        }
-
-        @Override
-        public Boolean visitSetStatement(SetAnalyzedStatement analysis, PrivilegeContext context) {
-            if (analysis.scope().equals(SetStatement.Scope.GLOBAL)) {
-                throwUnauthorized(context.sessionContext().user());
-                return false;
+        public Void visitRefreshTableStatement(RefreshTableAnalyzedStatement analysis, Context context) {
+            for (String indexName : analysis.indexNames()) {
+                String tableName;
+                if (PartitionName.isPartition(indexName)) {
+                    tableName = PartitionName.fromIndexOrTemplate(indexName).tableIdent().toString();
+                } else {
+                    tableName = TableIdent.fromIndexName(indexName).toString();
+                }
+                Privileges.raiseMissingPrivilegeException(
+                    Privilege.Type.DQL,
+                    Privilege.Clazz.TABLE,
+                    tableName,
+                    context.sessionContext.user());
             }
-            context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.CLUSTER,
-                Privilege.Type.DQL,
-                null,
-                context.sessionContext().user());
-            return true;
+            return null;
         }
 
         @Override
-        public Boolean visitAddColumnStatement(AddColumnAnalyzedStatement analysis, PrivilegeContext context) {
-            context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.TABLE,
+        public Void visitAlterTableRenameStatement(AlterTableRenameAnalyzedStatement analysis, Context context) {
+            Privileges.raiseMissingPrivilegeException(
                 Privilege.Type.DDL,
+                Privilege.Clazz.TABLE,
+                analysis.sourceTableInfo().toString(),
+                context.sessionContext.user());
+            return null;
+        }
+
+        @Override
+        public Void visitAlterBlobTableStatement(AlterBlobTableAnalyzedStatement analysis, Context context) {
+            Privileges.raiseMissingPrivilegeException(
+                Privilege.Type.DDL,
+                Privilege.Clazz.TABLE,
                 analysis.table().ident().toString(),
-                context.sessionContext().user());
-            return true;
+                context.sessionContext.user());
+            return null;
         }
 
         @Override
-        public Boolean visitAlterTableOpenCloseStatement(AlterTableOpenCloseAnalyzedStatement analysis, PrivilegeContext context) {
-            context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.TABLE,
-                Privilege.Type.DDL,
-                analysis.tableInfo().ident().toString(),
-                context.sessionContext().user());
-            return true;
-        }
-
-        @Override
-        public Boolean visitKillAnalyzedStatement(KillAnalyzedStatement analysis, PrivilegeContext context) {
-            throwUnauthorized(context.sessionContext().user());
-            return true;
-        }
-
-        @Override
-        public Boolean visitShowCreateTableAnalyzedStatement(ShowCreateTableAnalyzedStatement analysis, PrivilegeContext context) {
-            context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.TABLE,
+        public Void visitSetStatement(SetAnalyzedStatement analysis, Context context) {
+            if (analysis.scope().equals(SetStatement.Scope.GLOBAL)) {
+                throwUnauthorized(context.sessionContext.user());
+                return null;
+            }
+            Privileges.raiseMissingPrivilegeException(
                 Privilege.Type.DQL,
+                Privilege.Clazz.CLUSTER,
+                null,
+                context.sessionContext.user());
+            return null;
+        }
+
+        @Override
+        public Void visitAddColumnStatement(AddColumnAnalyzedStatement analysis, Context context) {
+            Privileges.raiseMissingPrivilegeException(
+                Privilege.Type.DDL,
+                Privilege.Clazz.TABLE,
+                analysis.table().ident().toString(),
+                context.sessionContext.user());
+            return null;
+        }
+
+        @Override
+        public Void visitAlterTableOpenCloseStatement(AlterTableOpenCloseAnalyzedStatement analysis, Context context) {
+            Privileges.raiseMissingPrivilegeException(
+                Privilege.Type.DDL,
+                Privilege.Clazz.TABLE,
                 analysis.tableInfo().ident().toString(),
-                context.sessionContext().user());
-            return true;
+                context.sessionContext.user());
+            return null;
         }
 
         @Override
-        public Boolean visitDropRepositoryAnalyzedStatement(DropRepositoryAnalyzedStatement analysis, PrivilegeContext context) {
-            context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.CLUSTER,
+        public Void visitKillAnalyzedStatement(KillAnalyzedStatement analysis, Context context) {
+            throwUnauthorized(context.sessionContext.user());
+            return null;
+        }
+
+        @Override
+        public Void visitShowCreateTableAnalyzedStatement(ShowCreateTableAnalyzedStatement analysis, Context context) {
+            Privileges.raiseMissingPrivilegeException(
+                Privilege.Type.DQL,
+                Privilege.Clazz.TABLE,
+                analysis.tableInfo().ident().toString(),
+                context.sessionContext.user());
+            return null;
+        }
+
+        @Override
+        public Void visitDropRepositoryAnalyzedStatement(DropRepositoryAnalyzedStatement analysis, Context context) {
+            Privileges.raiseMissingPrivilegeException(
                 Privilege.Type.DDL,
+                Privilege.Clazz.CLUSTER,
                 null,
-                context.sessionContext().user());
-            return true;
+                context.sessionContext.user());
+            return null;
         }
 
         @Override
-        public Boolean visitDropSnapshotAnalyzedStatement(DropSnapshotAnalyzedStatement analysis, PrivilegeContext context) {
-            context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.CLUSTER,
+        public Void visitDropSnapshotAnalyzedStatement(DropSnapshotAnalyzedStatement analysis, Context context) {
+            Privileges.raiseMissingPrivilegeException(
                 Privilege.Type.DDL,
+                Privilege.Clazz.CLUSTER,
                 null,
-                context.sessionContext().user());
-            return true;
+                context.sessionContext.user());
+            return null;
         }
 
         @Override
-        public Boolean visitCreateSnapshotAnalyzedStatement(CreateSnapshotAnalyzedStatement analysis, PrivilegeContext context) {
-            context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.CLUSTER,
+        public Void visitCreateSnapshotAnalyzedStatement(CreateSnapshotAnalyzedStatement analysis, Context context) {
+            Privileges.raiseMissingPrivilegeException(
                 Privilege.Type.DDL,
+                Privilege.Clazz.CLUSTER,
                 null,
-                context.sessionContext().user());
-            return true;
+                context.sessionContext.user());
+            return null;
         }
 
         @Override
-        public Boolean visitRestoreSnapshotAnalyzedStatement(RestoreSnapshotAnalyzedStatement analysis, PrivilegeContext context) {
-            context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.CLUSTER,
+        public Void visitRestoreSnapshotAnalyzedStatement(RestoreSnapshotAnalyzedStatement analysis, Context context) {
+            Privileges.raiseMissingPrivilegeException(
                 Privilege.Type.DDL,
+                Privilege.Clazz.CLUSTER,
                 null,
-                context.sessionContext().user());
-            return true;
+                context.sessionContext.user());
+            return null;
         }
 
         @Override
-        public Boolean visitResetAnalyzedStatement(ResetAnalyzedStatement resetAnalyzedStatement, PrivilegeContext context) {
-            throwUnauthorized(context.sessionContext().user());
-            return false;
+        public Void visitResetAnalyzedStatement(ResetAnalyzedStatement resetAnalyzedStatement, Context context) {
+            throwUnauthorized(context.sessionContext.user());
+            return null;
         }
 
         @Override
-        public Boolean visitExplainStatement(ExplainAnalyzedStatement explainAnalyzedStatement, PrivilegeContext context) {
+        public Void visitExplainStatement(ExplainAnalyzedStatement explainAnalyzedStatement, Context context) {
             return process(explainAnalyzedStatement.statement(), context);
         }
 
         @Override
-        public Boolean visitBegin(AnalyzedBegin analyzedBegin, PrivilegeContext context) {
-            context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.CLUSTER,
+        public Void visitBegin(AnalyzedBegin analyzedBegin, Context context) {
+            Privileges.raiseMissingPrivilegeException(
                 Privilege.Type.DQL,
+                Privilege.Clazz.CLUSTER,
                 null,
-                context.sessionContext().user());
-            return true;
+                context.sessionContext.user());
+            return null;
         }
     }
 
-    private final static class PrivilegeRelationVisitor extends AnalyzedRelationVisitor<PrivilegeContext, Boolean> {
+    private final static class RelationVisitor extends AnalyzedRelationVisitor<Context, Void> {
 
         @Override
-        protected Boolean visitAnalyzedRelation(AnalyzedRelation relation, PrivilegeContext context) {
+        protected Void visitAnalyzedRelation(AnalyzedRelation relation, Context context) {
             throw new UnsupportedOperationException(String.format(Locale.ENGLISH, "Can't handle \"%s\"", relation));
         }
 
         @Override
-        public Boolean visitQueriedTable(QueriedTable table, PrivilegeContext context) {
+        public Void visitQueriedTable(QueriedTable table, Context context) {
             process(table.tableRelation(), context);
-            return true;
+            return null;
         }
 
         @Override
-        public Boolean visitQueriedDocTable(QueriedDocTable table, PrivilegeContext context) {
-            context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.TABLE,
-                context.type(),
+        public Void visitQueriedDocTable(QueriedDocTable table, Context context) {
+            Privileges.raiseMissingPrivilegeException(
+                context.type,
+                Privilege.Clazz.TABLE,
                 table.tableRelation().getQualifiedName().toString(),
-                context.sessionContext().user());
-            return true;
+                context.sessionContext.user());
+            return null;
         }
 
         @Override
-        public Boolean visitMultiSourceSelect(MultiSourceSelect multiSourceSelect, PrivilegeContext context) {
+        public Void visitMultiSourceSelect(MultiSourceSelect multiSourceSelect, Context context) {
             for (AnalyzedRelation relation : multiSourceSelect.sources().values()) {
                 process(relation, context);
             }
-            return true;
+            return null;
         }
 
         @Override
-        public Boolean visitTableRelation(TableRelation tableRelation, PrivilegeContext context) {
-            context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.TABLE,
-                context.type(),
+        public Void visitTableRelation(TableRelation tableRelation, Context context) {
+            Privileges.raiseMissingPrivilegeException(
+                context.type,
+                Privilege.Clazz.TABLE,
                 tableRelation.getQualifiedName().toString(),
-                context.sessionContext().user());
-            return true;
+                context.sessionContext.user());
+            return null;
         }
 
         @Override
-        public Boolean visitDocTableRelation(DocTableRelation relation, PrivilegeContext context) {
-            context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.TABLE,
-                context.type(),
+        public Void visitDocTableRelation(DocTableRelation relation, Context context) {
+            Privileges.raiseMissingPrivilegeException(
+                context.type,
+                Privilege.Clazz.TABLE,
                 relation.getQualifiedName().toString(),
-                context.sessionContext().user());
-            return true;
+                context.sessionContext.user());
+            return null;
         }
 
         @Override
-        public Boolean visitTableFunctionRelation(TableFunctionRelation tableFunctionRelation, PrivilegeContext context) {
-            context.userManager().raiseMissingPrivilegeException(Privilege.Clazz.TABLE,
-                context.type(),
+        public Void visitTableFunctionRelation(TableFunctionRelation tableFunctionRelation, Context context) {
+            Privileges.raiseMissingPrivilegeException(
+                context.type,
+                Privilege.Clazz.TABLE,
                 tableFunctionRelation.tableInfo().ident().toString(),
-                context.sessionContext().user());
-            return true;
+                context.sessionContext.user());
+            return null;
         }
 
         @Override
-        public Boolean visitQueriedSelectRelation(QueriedSelectRelation relation, PrivilegeContext context) {
+        public Void visitQueriedSelectRelation(QueriedSelectRelation relation, Context context) {
             return process(relation.subRelation(), context);
         }
     }
